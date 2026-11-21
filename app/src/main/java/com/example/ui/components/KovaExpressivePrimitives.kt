@@ -54,11 +54,11 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.example.ui.feedback.LocalKovaFeedback
 import com.example.ui.theme.KovaCodeTextStyle
 import com.example.ui.theme.KovaExpressiveShapes
 import com.example.ui.theme.LocalKovaMotion
@@ -66,7 +66,7 @@ import com.example.ui.theme.LocalKovaTactileColors
 
 /**
  * Tactile 3D game-board card with a real solid bottom lip that physically compresses
- * downward on press with spring physics and a subtle haptic tick. Zero neon glow or blur shadows.
+ * downward on press with spring physics and synthesized tap sound + haptic tick.
  */
 @Composable
 fun KovaTactileCard(
@@ -81,13 +81,14 @@ fun KovaTactileCard(
     content: @Composable BoxScope.() -> Unit,
 ) {
     val motion = LocalKovaMotion.current
-    val haptic = LocalHapticFeedback.current
+    val feedback = LocalKovaFeedback.current
+    val view = LocalView.current
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
 
     LaunchedEffect(isPressed) {
         if (isPressed && onClick != null) {
-            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            feedback.tap(view)
         }
     }
 
@@ -120,7 +121,6 @@ fun KovaTactileCard(
     Box(
         modifier = modifier.then(clickableModifier),
     ) {
-        // Grounded solid 3D bottom lip
         Box(
             modifier = Modifier
                 .matchParentSize()
@@ -129,7 +129,6 @@ fun KovaTactileCard(
                 .background(lipColor),
         )
 
-        // Elevated tactile face that physically presses down into the lip
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -144,7 +143,8 @@ fun KovaTactileCard(
 }
 
 /**
- * Physical 3D keycap button with darker accent bottom lip, downward spring press, and haptic tick.
+ * Physical 3D keycap button with darker accent bottom lip, downward spring press,
+ * and synthesized sound + haptic tick.
  */
 @Composable
 fun KovaTactileButton(
@@ -158,17 +158,19 @@ fun KovaTactileButton(
     lipHeight: Dp = 5.dp,
     minHeight: Dp = 50.dp,
     enabled: Boolean = true,
+    playTapSound: Boolean = true,
     content: @Composable RowScope.() -> Unit,
 ) {
     val motion = LocalKovaMotion.current
-    val haptic = LocalHapticFeedback.current
+    val feedback = LocalKovaFeedback.current
+    val view = LocalView.current
     val tactile = LocalKovaTactileColors.current
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
 
     LaunchedEffect(isPressed) {
-        if (isPressed && enabled) {
-            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        if (isPressed && enabled && playTapSound) {
+            feedback.tap(view)
         }
     }
 
@@ -225,8 +227,8 @@ fun KovaTactileButton(
 }
 
 /**
- * Tactile 3D circular/squircle Quest Pedestal (78.dp–84.dp) for the winding S-curve lesson path.
- * Features a physical 6.dp bottom lip, downward spring press physics, subtle haptic tick,
+ * Tactile 3D circular/squircle Quest Pedestal (80.dp) for the winding S-curve lesson path.
+ * Features a physical 6.dp bottom lip, downward spring press physics, synthesized keycap sound,
  * and an optional animated pulsing crown ring on the active quest node (zero neon glow).
  */
 @Composable
@@ -244,14 +246,15 @@ fun Kova3DQuestPedestal(
     shape: Shape = KovaExpressiveShapes.LessonSquircleNode,
 ) {
     val motion = LocalKovaMotion.current
-    val haptic = LocalHapticFeedback.current
+    val feedback = LocalKovaFeedback.current
+    val view = LocalView.current
     val tactile = LocalKovaTactileColors.current
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
 
     LaunchedEffect(isPressed) {
         if (isPressed) {
-            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            feedback.pedestalPress(view)
         }
     }
 
@@ -271,7 +274,7 @@ fun Kova3DQuestPedestal(
         val infiniteTransition = rememberInfiniteTransition(label = "active_quest_ring")
         val animatedScale by infiniteTransition.animateFloat(
             initialValue = 1.0f,
-            targetValue = 1.11f,
+            targetValue = 1.10f,
             animationSpec = infiniteRepeatable(
                 animation = tween(durationMillis = 1200, easing = FastOutSlowInEasing),
                 repeatMode = RepeatMode.Reverse,
@@ -304,7 +307,6 @@ fun Kova3DQuestPedestal(
             ),
         contentAlignment = Alignment.Center,
     ) {
-        // Crisp pulsing tactile ring around active quest (solid dashed/crisp stroke, no blur)
         if (isActiveQuest) {
             Box(
                 modifier = Modifier
@@ -321,14 +323,12 @@ fun Kova3DQuestPedestal(
             )
         }
 
-        // Physical 3D Pedestal Stack
         Box(
             modifier = Modifier
                 .padding(top = 12.dp)
                 .size(width = pedestalSize, height = pedestalSize + lipHeight),
             contentAlignment = Alignment.TopCenter,
         ) {
-            // Solid 6.dp 3D base lip
             Box(
                 modifier = Modifier
                     .size(pedestalSize)
@@ -336,7 +336,6 @@ fun Kova3DQuestPedestal(
                     .clip(shape)
                     .background(lipColor),
             )
-            // Elevated top face with crisp top rim highlight & spring press
             Box(
                 modifier = Modifier
                     .size(pedestalSize)
@@ -358,12 +357,11 @@ fun Kova3DQuestPedestal(
             }
         }
 
-        // Floating Golden Star Crown badge perched above active quest
         if (isActiveQuest) {
             Surface(
                 shape = CircleShape,
-                color = tactile.amberFace,
-                border = BorderStroke(1.5.dp, tactile.amberLip),
+                color = tactile.coralFace,
+                border = BorderStroke(1.5.dp, tactile.coralLip),
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .graphicsLayer { translationY = crownBobY }
@@ -373,7 +371,7 @@ fun Kova3DQuestPedestal(
                     Icon(
                         imageVector = Icons.Filled.Star,
                         contentDescription = null,
-                        tint = tactile.onAmberFace,
+                        tint = tactile.onCoralFace,
                         modifier = Modifier.size(15.dp),
                     )
                 }
@@ -426,8 +424,6 @@ fun Kova3DGoldenTrophyPedestal(
 
 /**
  * Thick 3D Circular Progress Ring framing a chapter emblem.
- * Draws a recessed 3D track bevel + thick beveled progress arc that animates smoothly
- * as lessons complete (0% -> 25% -> 50% -> 75% -> 100%).
  */
 @Composable
 fun Kova3DChapterRing(
@@ -442,6 +438,7 @@ fun Kova3DChapterRing(
     modifier: Modifier = Modifier,
     size: Dp = 84.dp,
     strokeWidth: Dp = 9.dp,
+    celebrationNonce: Long? = null,
 ) {
     val motion = LocalKovaMotion.current
     val tactile = LocalKovaTactileColors.current
@@ -449,15 +446,29 @@ fun Kova3DChapterRing(
     val animatedProgress by animateFloatAsState(
         targetValue = progress.coerceIn(0f, 1f),
         animationSpec = if (motion.enabled) {
-            spring(dampingRatio = 0.75f, stiffness = 340f)
+            spring(dampingRatio = 0.76f, stiffness = 340f)
         } else {
             snap()
         },
         label = "chapter_3d_ring_progress",
     )
 
+    val ringPulse = remember { Animatable(1f) }
+    LaunchedEffect(celebrationNonce, motion.enabled) {
+        if (celebrationNonce != null && motion.enabled) {
+            ringPulse.snapTo(1f)
+            ringPulse.animateTo(1.12f, spring(dampingRatio = 0.55f, stiffness = 480f))
+            ringPulse.animateTo(1f, spring(dampingRatio = 0.72f, stiffness = 340f))
+        }
+    }
+
     Box(
-        modifier = modifier.size(size),
+        modifier = modifier
+            .size(size)
+            .graphicsLayer {
+                scaleX = ringPulse.value
+                scaleY = ringPulse.value
+            },
         contentAlignment = Alignment.Center,
     ) {
         Canvas(modifier = Modifier.matchParentSize()) {
@@ -471,7 +482,6 @@ fun Kova3DChapterRing(
             )
             val arcSize = Size(arcDiameter, arcDiameter)
 
-            // Recessed 3D track lip underneath
             drawArc(
                 color = tactile.ringTrackBevel,
                 startAngle = -90f,
@@ -482,7 +492,6 @@ fun Kova3DChapterRing(
                 style = Stroke(width = strokePx, cap = StrokeCap.Round),
             )
 
-            // Top circular track face
             drawArc(
                 color = tactile.ringTrack,
                 startAngle = -90f,
@@ -493,7 +502,6 @@ fun Kova3DChapterRing(
                 style = Stroke(width = strokePx, cap = StrokeCap.Round),
             )
 
-            // 3D beveled progress arc
             if (animatedProgress > 0.005f) {
                 val sweep = animatedProgress * 360f
                 drawArc(
@@ -517,7 +525,6 @@ fun Kova3DChapterRing(
             }
         }
 
-        // Tactile 3D circular emblem seated inside the ring
         val innerDiameter = size - (strokeWidth * 2) - 14.dp
         val emblemLip = 4.dp
         Box(
@@ -655,5 +662,39 @@ fun Modifier.shakeOnTrigger(
 
     graphicsLayer {
         translationX = offsetX.value
+    }
+}
+
+/**
+ * Exit-from-Lesson tactile return spring settle (or celebratory bounce when newly completed).
+ */
+fun Modifier.settleOrCelebrateOnReturn(
+    returnNonce: Long?,
+    isCelebration: Boolean,
+    enabled: Boolean,
+): Modifier = composed {
+    val scale = remember { Animatable(1f) }
+    val bounceY = remember { Animatable(0f) }
+
+    LaunchedEffect(returnNonce, isCelebration, enabled) {
+        if (returnNonce != null && enabled) {
+            if (isCelebration) {
+                scale.snapTo(0.88f)
+                bounceY.snapTo(-18f)
+                scale.animateTo(1.14f, spring(dampingRatio = 0.45f, stiffness = 420f))
+                bounceY.animateTo(0f, spring(dampingRatio = 0.52f, stiffness = 340f))
+                scale.animateTo(1f, spring(dampingRatio = 0.72f, stiffness = 340f))
+            } else {
+                scale.snapTo(0.93f)
+                scale.animateTo(1.04f, spring(dampingRatio = 0.65f, stiffness = 420f))
+                scale.animateTo(1f, spring(dampingRatio = 0.76f, stiffness = 340f))
+            }
+        }
+    }
+
+    graphicsLayer {
+        scaleX = scale.value
+        scaleY = scale.value
+        translationY = bounceY.value
     }
 }

@@ -33,14 +33,14 @@ data class KovaMotionConfig(
 ) {
     val containerBoundsSpec: FiniteAnimationSpec<Rect>
         get() = if (enabled) {
-            spring(dampingRatio = 0.75f, stiffness = 340f)
+            spring(dampingRatio = 0.76f, stiffness = 340f)
         } else {
             snap()
         }
 
     fun <T> expressiveSpring(): FiniteAnimationSpec<T> =
         if (enabled) {
-            spring(dampingRatio = 0.75f, stiffness = 340f)
+            spring(dampingRatio = 0.76f, stiffness = 340f)
         } else {
             snap()
         }
@@ -48,7 +48,7 @@ data class KovaMotionConfig(
 
 /**
  * Tactile 3D game-board palette tokens with solid face + darker 3D lip pairs.
- * Zero neon or glowing accents across Daylight, Warm Charcoal Dark, and True AMOLED.
+ * Warm Daylight, Grounded Warm Dark, and True AMOLED with rich, balanced game accents.
  */
 @Immutable
 data class KovaTactileColors(
@@ -72,6 +72,11 @@ data class KovaTactileColors(
     val onAmberFace: Color,
     val amberSoft: Color,
     val onAmberSoft: Color,
+    val coralFace: Color,
+    val coralLip: Color,
+    val onCoralFace: Color,
+    val coralSoft: Color,
+    val onCoralSoft: Color,
     val stoneFace: Color,
     val stoneLip: Color,
     val stoneLabel: Color,
@@ -110,6 +115,11 @@ private val WarmDaylightTactileColors = KovaTactileColors(
     onAmberFace = Color.White,
     amberSoft = TactileAmberSoft,
     onAmberSoft = TactileOnAmberSoft,
+    coralFace = TactileCoral,
+    coralLip = TactileCoralLip,
+    onCoralFace = Color.White,
+    coralSoft = TactileCoralSoft,
+    onCoralSoft = TactileOnCoralSoft,
     stoneFace = TactileStone,
     stoneLip = TactileStoneLip,
     stoneLabel = TactileStoneLabel,
@@ -123,33 +133,38 @@ private val WarmDaylightTactileColors = KovaTactileColors(
     isAmoled = false,
 )
 
-private val WarmCharcoalDarkTactileColors = KovaTactileColors(
-    cardFace = WarmCharcoalSurface,
-    cardElevatedFace = WarmCharcoalSurfaceHigh,
-    cardOutline = WarmCharcoalBorder,
-    cardLip = WarmCharcoalCardLip,
+private val WarmDarkTactileColors = KovaTactileColors(
+    cardFace = WarmDarkSurface,
+    cardElevatedFace = WarmDarkSurfaceHigh,
+    cardOutline = WarmDarkBorder,
+    cardLip = WarmDarkCardLip,
     cardBorderWidthDp = 1.25f,
     emeraldFace = WarmDarkEmerald,
     emeraldLip = WarmDarkEmeraldLip,
-    onEmeraldFace = Color(0xFF042F1E),
+    onEmeraldFace = Color(0xFF052E16),
     emeraldSoft = WarmDarkEmeraldSoft,
     onEmeraldSoft = WarmDarkOnEmeraldSoft,
     cobaltFace = WarmDarkCobalt,
     cobaltLip = WarmDarkCobaltLip,
-    onCobaltFace = Color(0xFF091B3A),
+    onCobaltFace = Color.White,
     cobaltSoft = WarmDarkCobaltSoft,
     onCobaltSoft = WarmDarkOnCobaltSoft,
     amberFace = WarmDarkAmber,
     amberLip = WarmDarkAmberLip,
-    onAmberFace = Color(0xFF331B00),
+    onAmberFace = Color(0xFF2E1700),
     amberSoft = WarmDarkAmberSoft,
     onAmberSoft = WarmDarkOnAmberSoft,
-    stoneFace = WarmCharcoalStone,
-    stoneLip = WarmCharcoalStoneLip,
-    stoneLabel = WarmCharcoalStoneLabel,
-    ringTrack = WarmCharcoalSurfaceHigh,
-    ringTrackBevel = WarmCharcoalSurfaceLow,
-    pathInactive = Color(0xFF474139),
+    coralFace = WarmDarkCoral,
+    coralLip = WarmDarkCoralLip,
+    onCoralFace = Color.White,
+    coralSoft = WarmDarkCoralSoft,
+    onCoralSoft = WarmDarkOnCoralSoft,
+    stoneFace = WarmDarkStone,
+    stoneLip = WarmDarkStoneLip,
+    stoneLabel = WarmDarkStoneLabel,
+    ringTrack = WarmDarkSurfaceHigh,
+    ringTrackBevel = WarmDarkSurfaceLow,
+    pathInactive = Color(0xFF474037),
     keyIdea = HighlightKeyIdeaDark,
     codeRule = HighlightCodeRuleDark,
     gotcha = HighlightGotchaDark,
@@ -157,7 +172,7 @@ private val WarmCharcoalDarkTactileColors = KovaTactileColors(
     isAmoled = false,
 )
 
-private val TrueAmoledTactileColors = WarmCharcoalDarkTactileColors.copy(
+private val TrueAmoledTactileColors = WarmDarkTactileColors.copy(
     cardFace = AmoledCardSurface,
     cardElevatedFace = AmoledSurfaceHigh,
     cardOutline = AmoledOutline,
@@ -167,7 +182,7 @@ private val TrueAmoledTactileColors = WarmCharcoalDarkTactileColors.copy(
     stoneLip = AmoledStoneLip,
     ringTrack = AmoledSurfaceHigh,
     ringTrackBevel = AmoledSurfaceLow,
-    pathInactive = Color(0xFF333333),
+    pathInactive = Color(0xFF303030),
     isAmoled = true,
 )
 
@@ -199,35 +214,35 @@ private val WarmDaylightColorScheme = lightColorScheme(
     outlineVariant = WarmOutline,
 )
 
-private val WarmCharcoalDarkColorScheme = darkColorScheme(
+private val WarmDarkColorScheme = darkColorScheme(
     primary = WarmDarkEmerald,
-    onPrimary = Color(0xFF042F1E),
+    onPrimary = Color(0xFF052E16),
     primaryContainer = WarmDarkEmeraldSoft,
     onPrimaryContainer = WarmDarkOnEmeraldSoft,
     secondary = WarmDarkAmber,
-    onSecondary = Color(0xFF331B00),
+    onSecondary = Color(0xFF2E1700),
     secondaryContainer = WarmDarkAmberSoft,
     onSecondaryContainer = WarmDarkOnAmberSoft,
     tertiary = WarmDarkCobalt,
-    onTertiary = Color(0xFF091B3A),
+    onTertiary = Color.White,
     tertiaryContainer = WarmDarkCobaltSoft,
     onTertiaryContainer = WarmDarkOnCobaltSoft,
-    background = WarmCharcoalBackground,
-    onBackground = WarmCharcoalTextPrimary,
-    surface = WarmCharcoalSurface,
-    onSurface = WarmCharcoalTextPrimary,
-    surfaceVariant = WarmCharcoalSurfaceHigh,
-    onSurfaceVariant = WarmCharcoalTextSecondary,
-    surfaceContainerLowest = WarmCharcoalBackground,
-    surfaceContainerLow = WarmCharcoalSurfaceLow,
-    surfaceContainer = WarmCharcoalSurface,
-    surfaceContainerHigh = WarmCharcoalSurfaceHigh,
-    surfaceContainerHighest = WarmCharcoalSurfaceHighest,
-    outline = WarmCharcoalBorder,
-    outlineVariant = WarmCharcoalBorder,
+    background = WarmDarkBackground,
+    onBackground = WarmDarkTextPrimary,
+    surface = WarmDarkSurface,
+    onSurface = WarmDarkTextPrimary,
+    surfaceVariant = WarmDarkSurfaceHigh,
+    onSurfaceVariant = WarmDarkTextSecondary,
+    surfaceContainerLowest = WarmDarkBackground,
+    surfaceContainerLow = WarmDarkSurfaceLow,
+    surfaceContainer = WarmDarkSurface,
+    surfaceContainerHigh = WarmDarkSurfaceHigh,
+    surfaceContainerHighest = WarmDarkSurfaceHighest,
+    outline = WarmDarkBorder,
+    outlineVariant = WarmDarkBorder,
 )
 
-private val TrueAmoledColorScheme = WarmCharcoalDarkColorScheme.copy(
+private val TrueAmoledColorScheme = WarmDarkColorScheme.copy(
     background = AmoledTrueBlackBackground,
     surface = AmoledCardSurface,
     surfaceVariant = AmoledSurfaceHigh,
@@ -269,13 +284,13 @@ fun KovaTheme(
             }
         }
         themeMode == ThemeMode.AMOLED_BLACK -> TrueAmoledColorScheme
-        themeMode == ThemeMode.WARM_DARK -> WarmCharcoalDarkColorScheme
+        themeMode == ThemeMode.WARM_DARK -> WarmDarkColorScheme
         else -> WarmDaylightColorScheme
     }
 
     val baseTactile = when (themeMode) {
         ThemeMode.WARM_DAYLIGHT -> WarmDaylightTactileColors
-        ThemeMode.WARM_DARK -> WarmCharcoalDarkTactileColors
+        ThemeMode.WARM_DARK -> WarmDarkTactileColors
         ThemeMode.AMOLED_BLACK -> TrueAmoledTactileColors
     }
 

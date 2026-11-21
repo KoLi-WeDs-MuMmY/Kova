@@ -183,7 +183,12 @@ class KovaViewModel(
             return
         }
 
-        _uiState.update { it.copy(activeDetail = DetailDestination.LessonDetail(lessonId)) }
+        _uiState.update {
+            it.copy(
+                activeDetail = DetailDestination.LessonDetail(lessonId),
+                newlyCompletedLessonInSession = null,
+            )
+        }
     }
 
     fun openAssignment(assignmentId: String, originPrefix: String) {
@@ -218,7 +223,29 @@ class KovaViewModel(
     }
 
     fun closeDetail() {
-        _uiState.update { it.copy(activeDetail = null) }
+        _uiState.update { state ->
+            val currentDetail = state.activeDetail
+            val returnEvent = if (currentDetail is DetailDestination.LessonDetail) {
+                com.example.model.LessonReturnEvent(
+                    lessonId = currentDetail.lessonId,
+                    wasNewlyCompleted = state.newlyCompletedLessonInSession == currentDetail.lessonId,
+                    nonce = System.nanoTime(),
+                )
+            } else {
+                state.lessonReturnEvent
+            }
+            state.copy(
+                activeDetail = null,
+                newlyCompletedLessonInSession = null,
+                lessonReturnEvent = returnEvent,
+            )
+        }
+    }
+
+    fun cycleLessonSplitRatio() {
+        _uiState.update { state ->
+            state.copy(lessonSplitRatio = state.lessonSplitRatio.next())
+        }
     }
 
     fun passLessonMockTest(lessonId: String, scorePercent: Int = 85) {
@@ -283,6 +310,7 @@ class KovaViewModel(
             state.copy(
                 chapters = updatedChapters,
                 quota = updatedQuota,
+                newlyCompletedLessonInSession = if (!wasAlreadyCompleted) lessonId else state.newlyCompletedLessonInSession,
                 snackbarMessage = feedback,
             )
         }
@@ -797,6 +825,10 @@ class KovaViewModel(
         _uiState.update { it.copy(expressiveMotionEnabled = enabled) }
     }
 
+    fun setSoundAndHapticsEnabled(enabled: Boolean) {
+        _uiState.update { it.copy(soundAndHapticsEnabled = enabled) }
+    }
+
     fun setDevUnlockAllOverride(enabled: Boolean) {
         _uiState.update { state ->
             if (enabled) {
@@ -840,9 +872,11 @@ class KovaViewModel(
                 themeMode = current.themeMode,
                 dynamicColorEnabled = current.dynamicColorEnabled,
                 expressiveMotionEnabled = current.expressiveMotionEnabled,
+                soundAndHapticsEnabled = current.soundAndHapticsEnabled,
+                lessonSplitRatio = current.lessonSplitRatio,
                 isFloatingPreview = current.isFloatingPreview,
                 isSettingsOpen = false,
-                snackbarMessage = "Phase 2 study data & progress reset.",
+                snackbarMessage = "Study data & mock progress reset.",
             )
         }
     }

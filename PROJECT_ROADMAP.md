@@ -62,9 +62,28 @@ This document preserves the North Star vision, Phase 1 deliverable contract, and
   - **AI Tab Makeover**: Compact Top Context & Quota Strip (`Morning Digest`, `Active Pool`, `SR Reserve`), collapsible slide-over Chat History Drawer (or split-pane on `>= 700.dp` tablets) with search/pin/delete/New Thread, editable Quick-Prompt Chips, and 1-tap **"Save to Notes"** (`Key Idea` / `Code Rule` / `Gotcha`) on every AI bubble.
   - **Revision Study Binder Makeover**: Top **Concept Mastery & Mistake Radar Card** with 1-tap **"Focus Next"**, segmented binder (`Highlights` | `Flashcards` | `SR Queue`), offline **60-Second 3D Flashcard Flip Mode** (live countdown, Pause/Resume/Restart, real Y-axis `rotationY` flip, `"Review Again"` / `"Got It"` SR updates, sprint summary), and Due Now vs. Upcoming SR queue.
 
+## Part B.3: Phase 1.3 Focus Workspace, Warm Dark/AMOLED Overhaul, Audio/Haptic Feedback & Structured Workspaces (Implemented)
+
+- **Redesigned Warm Dark & True AMOLED Palettes (Warm Daylight Untouched)**:
+  - **Warm Dark**: Canvas `#141210`, layered surfaces `#1C1916` / `#25211D` / `#302B25`, warm borders `#423B32`, balanced Emerald `#22C55E` (`#15803D` lip), Balanced Cobalt `#3B82F6` (`#1D4ED8` lip), Amber `#F59E0B` (`#B45309` lip), and Coral `#F97316` (`#C2410C` lip) highlights.
+  - **True AMOLED**: `#000000` background with `#101010` / `#181818` tactile cards, `#262626` borders, and matching `4.dp`–`6.dp` 3D lips.
+- **Lesson Entry Focus Fade & Orientation-Aware Progress Bar**:
+  - Entering a lesson fades out global app chrome into a clean distraction-free focus canvas (`LessonFocusWorkspace`).
+  - Displays a sleek tactile 3D Lesson Progress Bar along the **top edge** in Portrait (`height >= width`) and along the **left side edge rail** in Landscape (`width > height`).
+- **Intra-Lesson Split-Screen Ratio Toggle (`75:25 -> 50:50 -> 25:75`)**:
+  - Smooth spring-animated pane resizing cycling `75:25 -> 50:50 -> 25:75 -> 75:25`, arranged **Top / Bottom** vertically in Portrait and **Left / Right** side-by-side in Landscape, paired with a clean styled empty **`Code & IDE Space (READY FOR PHASE 2/3)`** placeholder canvas.
+- **Exit-from-Lesson Return Animations**:
+  - Exiting a lesson smoothly animates chrome, telemetry, and chapter cards back in with staggered spring choreography, triggers a tactile settle/celebratory bounce on the exited lesson pedestal, pulses the chapter's 3D progress ring, and boosts the stepping path connector.
+- **Structured AI & Revision Workspaces + Expanded M3 Expressive Ambient Canvas**:
+  - **AI Tab**: Structured header with active lesson badge, compact collapsible session counter, 3-column Quota telemetry row, and dedicated monospace code cards inside tutor replies.
+  - **Revision Tab**: Crisp section headers/dividers, balanced Coral Weak Spots / Due Now / Gotcha accents, and standardized `spring(dampingRatio = 0.76f, stiffness = 340f)` transitions.
+  - **Ambient Canvas**: Expanded to 7 low-opacity M3 Expressive shapes (squircle, hollow ring, curved wave ribbon, pill capsule, 6-lobe scalloped polygon, 4-point star, rounded diamond).
+- **Synthesized Duolingo-Style Sounds & Native Haptics**:
+  - Added `KovaFeedbackEngine` (zero-asset PCM `AudioTrack` micro-sounds + `HapticFeedbackConstants`) wired to 3D presses, flips, saves, passes, and lock shakes, controlled by a **Sound & Haptics** toggle in Settings (ON by default).
+
 ---
 
-## Part C: Upcoming Phase 3 (Live Gemini AI, Interactive Lessons & Lab Prompt Builder)
+## Part C: Upcoming Phase 2/3 (Live Gemini AI, Interactive Lessons & Lab Prompt Builder)
 
 - **Interactive Lesson Reader & Debugger**: Full curriculum text with interactive highlighting, step-by-step Debugger Line Animation + live Variable Watch panel, Desired Output + collapsible Show Solution, and real >= 80% Lesson Tests.
 - **Lab Virtual Prompt Builder**: Interactive `<Folder>` / `<File>` tree builder & single-prompt bundler in `Lab`.

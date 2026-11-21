@@ -38,9 +38,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -53,6 +52,7 @@ import com.example.ui.components.KovaPillBadge
 import com.example.ui.components.KovaScallopedSealBadge
 import com.example.ui.components.KovaTactileButton
 import com.example.ui.components.KovaTactileCard
+import com.example.ui.feedback.LocalKovaFeedback
 import com.example.ui.theme.KovaCodeTextStyle
 import com.example.ui.theme.KovaExpressiveShapes
 import com.example.ui.theme.LocalKovaMotion
@@ -76,7 +76,8 @@ fun FlashcardSprintView(
 ) {
     val tactile = LocalKovaTactileColors.current
     val motion = LocalKovaMotion.current
-    val haptic = LocalHapticFeedback.current
+    val feedback = LocalKovaFeedback.current
+    val view = LocalView.current
     val density = LocalDensity.current.density
 
     Column(
@@ -111,8 +112,8 @@ fun FlashcardSprintView(
                         KovaPillBadge(
                             text = "${sprint.secondsRemaining}s",
                             leadingIcon = Icons.Outlined.Timer,
-                            containerColor = if (sprint.secondsRemaining <= 15) tactile.amberSoft else tactile.cobaltSoft,
-                            contentColor = if (sprint.secondsRemaining <= 15) tactile.onAmberSoft else tactile.onCobaltSoft,
+                            containerColor = if (sprint.secondsRemaining <= 15) tactile.coralSoft else tactile.cobaltSoft,
+                            contentColor = if (sprint.secondsRemaining <= 15) tactile.onCoralSoft else tactile.onCobaltSoft,
                             borderColor = Color.Transparent,
                             modifier = Modifier.testTag("flashcard_timer_badge"),
                         )
@@ -125,7 +126,10 @@ fun FlashcardSprintView(
 
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Surface(
-                            onClick = onTogglePause,
+                            onClick = {
+                                feedback.tap(view)
+                                onTogglePause()
+                            },
                             shape = CircleShape,
                             color = tactile.cobaltSoft,
                             border = BorderStroke(1.dp, tactile.cobaltFace.copy(alpha = 0.4f)),
@@ -147,7 +151,10 @@ fun FlashcardSprintView(
                             }
                         }
                         Surface(
-                            onClick = onRestart,
+                            onClick = {
+                                feedback.tap(view)
+                                onRestart()
+                            },
                             shape = CircleShape,
                             color = tactile.cardElevatedFace,
                             border = BorderStroke(1.dp, tactile.cardOutline),
@@ -171,7 +178,7 @@ fun FlashcardSprintView(
                     .coerceIn(0f, 1f)
                 LinearProgressIndicator(
                     progress = { progress },
-                    color = if (sprint.secondsRemaining <= 15) tactile.amberFace else tactile.emeraldFace,
+                    color = if (sprint.secondsRemaining <= 15) tactile.coralFace else tactile.emeraldFace,
                     trackColor = tactile.ringTrack,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -211,7 +218,7 @@ fun FlashcardSprintView(
         val animatedRotation by animateFloatAsState(
             targetValue = targetRotation,
             animationSpec = if (motion.enabled) {
-                spring(dampingRatio = 0.76f, stiffness = 280f)
+                spring(dampingRatio = 0.76f, stiffness = 340f)
             } else {
                 snap()
             },
@@ -228,7 +235,7 @@ fun FlashcardSprintView(
                     cameraDistance = 14f * density
                 }
                 .clickable {
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    feedback.tap(view)
                     onFlipCard()
                 }
                 .testTag("flashcard_3d_card"),
@@ -281,12 +288,16 @@ fun FlashcardSprintView(
             }
 
             KovaTactileButton(
-                onClick = onRateGotIt,
+                onClick = {
+                    feedback.success(view)
+                    onRateGotIt()
+                },
                 faceColor = tactile.emeraldFace,
                 lipColor = tactile.emeraldLip,
                 contentColor = tactile.onEmeraldFace,
                 minHeight = 52.dp,
                 lipHeight = 5.dp,
+                playTapSound = false,
                 modifier = Modifier
                     .weight(1f)
                     .testTag("flashcard_got_it_button"),

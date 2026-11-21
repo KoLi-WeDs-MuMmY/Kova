@@ -72,6 +72,12 @@
     <string name="filter_code_rule">Code Rule</string>
     <string name="filter_gotcha">Gotcha</string>
 
+    <!-- Lesson Focus & Split-Screen IDE -->
+    <string name="lesson_ide_header">Code &amp; IDE Space</string>
+    <string name="lesson_ide_ready_badge">READY FOR PHASE 2/3</string>
+    <string name="lesson_ide_empty_hint">Clean workspace canvas reserved for live Kotlin editing &amp; execution.</string>
+    <string name="cd_cycle_split_ratio">Cycle lesson and IDE split ratio</string>
+
     <!-- Settings Sheet -->
     <string name="settings_title">Appearance &amp; Developer Controls</string>
     <string name="settings_theme_mode">Surface Theme</string>
@@ -81,8 +87,10 @@
     <string name="settings_dynamic_color">Material You Dynamic Color</string>
     <string name="settings_dynamic_color_desc">Android 12+ wallpaper palette (preserves #000000 in AMOLED mode)</string>
     <string name="settings_motion_title">Tactile Spring Motion</string>
-    <string name="settings_motion_desc">Toggle 3D press physics, ambient drifting shapes, and drop-down springs</string>
+    <string name="settings_motion_desc">Toggle 3D press physics, ambient expressive shapes, and spring transitions</string>
+    <string name="settings_sound_haptics_title">Sound &amp; Haptics</string>
+    <string name="settings_sound_haptics_desc">Synthesized game pops, rising mastery chimes, and crisp tactile ticks</string>
     <string name="settings_dev_override">Dev Override: Unlock All &amp; Reset Daily Limit</string>
     <string name="settings_dev_override_desc">Unlock every lesson &amp; chapter freely and restore 3/3 daily quota</string>
-    <string name="settings_reset_demo">Reset Phase 2 Mock Progress</string>
+    <string name="settings_reset_demo">Reset Mock Progress</string>
 </resources>

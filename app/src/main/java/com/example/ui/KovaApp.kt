@@ -3,6 +3,7 @@ package com.example.ui
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -54,6 +55,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -61,8 +63,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -78,6 +82,8 @@ import com.example.ui.components.AmbientMaterialCanvas
 import com.example.ui.components.DeveloperSettingsSheet
 import com.example.ui.components.FloatingCompanionHost
 import com.example.ui.components.KovaTactileCard
+import com.example.ui.feedback.KovaFeedbackController
+import com.example.ui.feedback.LocalKovaFeedback
 import com.example.ui.screens.AiScreen
 import com.example.ui.screens.DetailSheetHost
 import com.example.ui.screens.LabScreen
@@ -114,6 +120,17 @@ fun KovaApp(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val feedbackController = remember(uiState.soundAndHapticsEnabled) {
+        KovaFeedbackController(enabled = uiState.soundAndHapticsEnabled)
+    }
+    val view = LocalView.current
+
+    // Gentle low note + REJECT haptic whenever a locked node shakes
+    LaunchedEffect(uiState.lockedShakeEvent?.nonce) {
+        if (uiState.lockedShakeEvent != null) {
+            feedbackController.errorLock(view)
+        }
+    }
 
     LaunchedEffect(uiState.snackbarMessage) {
         val message = uiState.snackbarMessage
@@ -126,62 +143,75 @@ fun KovaApp(
         }
     }
 
-    KovaTheme(
-        themeMode = uiState.themeMode,
-        dynamicColor = uiState.dynamicColorEnabled,
-        expressiveMotionEnabled = uiState.expressiveMotionEnabled,
-    ) {
-        FloatingCompanionHost(
-            isFloatingPreview = uiState.isFloatingPreview,
-            onExitFloating = { viewModel.setFloatingPreview(false) },
-        ) { isCompactFloating ->
-            KovaShellContent(
-                uiState = uiState,
-                isCompactFloating = isCompactFloating,
-                snackbarHostState = snackbarHostState,
-                onTabSelected = viewModel::selectTab,
-                onToggleFloating = viewModel::toggleFloatingPreview,
-                onOpenSettings = { viewModel.setSettingsOpen(true) },
-                onToggleChapterExpanded = viewModel::toggleChapterExpanded,
-                onLessonClick = viewModel::openLesson,
-                onAssignmentClick = viewModel::openAssignment,
-                onNoteClick = viewModel::openNote,
-                onRevisionSheetClick = viewModel::openRevisionSheet,
-                onCloseDetail = viewModel::closeDetail,
-                onPassLessonMockTest = viewModel::passLessonMockTest,
-                onCompleteAssignment = viewModel::completeAssignment,
-                onSelectThread = viewModel::selectChatThread,
-                onCreateNewThread = viewModel::createNewLessonThread,
-                onUpdateChatSearch = viewModel::updateChatSearchQuery,
-                onTogglePinThread = viewModel::togglePinThread,
-                onDeleteThread = viewModel::deleteChatThread,
-                onUpdateChatComposer = viewModel::updateChatComposerText,
-                onInsertQuickPrompt = viewModel::insertQuickPrompt,
-                onSendChatMessage = viewModel::sendChatMessage,
-                onSaveMessageToNotes = viewModel::saveAiMessageToNotes,
-                onSelectBinderTab = viewModel::selectBinderTab,
-                onUpdateRevisionSearch = viewModel::updateRevisionSearchQuery,
-                onSelectHighlightFilter = viewModel::selectHighlightFilter,
-                onFocusNextFromRadar = viewModel::focusNextFromRadar,
-                onStartQuickReview = viewModel::startQuickReviewFromQueue,
-                onTogglePauseSprint = viewModel::togglePauseFlashcardSprint,
-                onRestartSprint = { viewModel.restartFlashcardSprint(autoStart = true) },
-                onFlipFlashcard = viewModel::flipFlashcard,
-                onRateFlashcardReviewAgain = viewModel::rateFlashcardReviewAgain,
-                onRateFlashcardGotIt = viewModel::rateFlashcardGotIt,
-            )
-        }
+    CompositionLocalProvider(LocalKovaFeedback provides feedbackController) {
+        KovaTheme(
+            themeMode = uiState.themeMode,
+            dynamicColor = uiState.dynamicColorEnabled,
+            expressiveMotionEnabled = uiState.expressiveMotionEnabled,
+        ) {
+            FloatingCompanionHost(
+                isFloatingPreview = uiState.isFloatingPreview,
+                onExitFloating = { viewModel.setFloatingPreview(false) },
+            ) { isCompactFloating ->
+                KovaShellContent(
+                    uiState = uiState,
+                    isCompactFloating = isCompactFloating,
+                    snackbarHostState = snackbarHostState,
+                    onTabSelected = { tab ->
+                        feedbackController.tap(view)
+                        viewModel.selectTab(tab)
+                    },
+                    onToggleFloating = {
+                        feedbackController.tap(view)
+                        viewModel.toggleFloatingPreview()
+                    },
+                    onOpenSettings = {
+                        feedbackController.tap(view)
+                        viewModel.setSettingsOpen(true)
+                    },
+                    onToggleChapterExpanded = viewModel::toggleChapterExpanded,
+                    onLessonClick = viewModel::openLesson,
+                    onAssignmentClick = viewModel::openAssignment,
+                    onNoteClick = viewModel::openNote,
+                    onRevisionSheetClick = viewModel::openRevisionSheet,
+                    onCloseDetail = viewModel::closeDetail,
+                    onCycleSplitRatio = viewModel::cycleLessonSplitRatio,
+                    onPassLessonMockTest = viewModel::passLessonMockTest,
+                    onCompleteAssignment = viewModel::completeAssignment,
+                    onSelectThread = viewModel::selectChatThread,
+                    onCreateNewThread = viewModel::createNewLessonThread,
+                    onUpdateChatSearch = viewModel::updateChatSearchQuery,
+                    onTogglePinThread = viewModel::togglePinThread,
+                    onDeleteThread = viewModel::deleteChatThread,
+                    onUpdateChatComposer = viewModel::updateChatComposerText,
+                    onInsertQuickPrompt = viewModel::insertQuickPrompt,
+                    onSendChatMessage = viewModel::sendChatMessage,
+                    onSaveMessageToNotes = viewModel::saveAiMessageToNotes,
+                    onSelectBinderTab = viewModel::selectBinderTab,
+                    onUpdateRevisionSearch = viewModel::updateRevisionSearchQuery,
+                    onSelectHighlightFilter = viewModel::selectHighlightFilter,
+                    onFocusNextFromRadar = viewModel::focusNextFromRadar,
+                    onStartQuickReview = viewModel::startQuickReviewFromQueue,
+                    onTogglePauseSprint = viewModel::togglePauseFlashcardSprint,
+                    onRestartSprint = { viewModel.restartFlashcardSprint(autoStart = true) },
+                    onFlipFlashcard = viewModel::flipFlashcard,
+                    onRateFlashcardReviewAgain = viewModel::rateFlashcardReviewAgain,
+                    onRateFlashcardGotIt = viewModel::rateFlashcardGotIt,
+                )
+            }
 
-        if (uiState.isSettingsOpen) {
-            DeveloperSettingsSheet(
-                uiState = uiState,
-                onDismiss = { viewModel.setSettingsOpen(false) },
-                onThemeModeSelected = viewModel::setThemeMode,
-                onDynamicColorChanged = viewModel::setDynamicColorEnabled,
-                onExpressiveMotionChanged = viewModel::setExpressiveMotionEnabled,
-                onDevOverrideChanged = viewModel::setDevUnlockAllOverride,
-                onResetProgress = viewModel::resetDemoProgress,
-            )
+            if (uiState.isSettingsOpen) {
+                DeveloperSettingsSheet(
+                    uiState = uiState,
+                    onDismiss = { viewModel.setSettingsOpen(false) },
+                    onThemeModeSelected = viewModel::setThemeMode,
+                    onDynamicColorChanged = viewModel::setDynamicColorEnabled,
+                    onExpressiveMotionChanged = viewModel::setExpressiveMotionEnabled,
+                    onSoundAndHapticsChanged = viewModel::setSoundAndHapticsEnabled,
+                    onDevOverrideChanged = viewModel::setDevUnlockAllOverride,
+                    onResetProgress = viewModel::resetDemoProgress,
+                )
+            }
         }
     }
 }
@@ -201,6 +231,7 @@ private fun KovaShellContent(
     onNoteClick: (String) -> Unit,
     onRevisionSheetClick: (String) -> Unit,
     onCloseDetail: () -> Unit,
+    onCycleSplitRatio: () -> Unit,
     onPassLessonMockTest: (String) -> Unit,
     onCompleteAssignment: (String) -> Unit,
     onSelectThread: (String) -> Unit,
@@ -226,6 +257,17 @@ private fun KovaShellContent(
     val motion = LocalKovaMotion.current
     val tactile = LocalKovaTactileColors.current
 
+    // Smooth Focus Fade for app chrome when entering a lesson, and spring reveal on return
+    val chromeAlpha by animateFloatAsState(
+        targetValue = if (uiState.isLessonFocusMode) 0f else 1f,
+        animationSpec = if (motion.enabled) {
+            spring(dampingRatio = 0.76f, stiffness = 340f)
+        } else {
+            snap()
+        },
+        label = "lesson_focus_chrome_alpha",
+    )
+
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
@@ -234,15 +276,26 @@ private fun KovaShellContent(
         val useTabletRail = maxWidth >= 600.dp && !isCompactFloating
         val useTwoPane = maxWidth >= 700.dp && !isCompactFloating
 
-        // Subtle ambient moving M3 geometric shapes behind all screens
-        AmbientMaterialCanvas(modifier = Modifier.fillMaxSize())
+        AmbientMaterialCanvas(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { alpha = if (uiState.isLessonFocusMode) 0.45f else 1f },
+        )
 
         SharedTransitionLayout(modifier = Modifier.fillMaxSize()) {
             AnimatedContent(
                 targetState = uiState.activeDetail,
                 transitionSpec = {
-                    val duration = if (motion.enabled) 240 else 0
-                    fadeIn(tween(duration)) togetherWith fadeOut(tween(duration))
+                    val enterDur = if (motion.enabled) 260 else 0
+                    val exitDur = if (motion.enabled) 210 else 0
+                    (fadeIn(tween(enterDur)) + scaleIn(
+                        initialScale = 0.97f,
+                        animationSpec = if (motion.enabled) {
+                            spring(dampingRatio = 0.76f, stiffness = 340f)
+                        } else {
+                            snap()
+                        },
+                    )).togetherWith(fadeOut(tween(exitDur)))
                 },
                 label = "kova_detail_container_transform",
             ) { activeDetail ->
@@ -258,6 +311,7 @@ private fun KovaShellContent(
                             sharedTransitionScope = this@SharedTransitionLayout,
                             animatedVisibilityScope = this@AnimatedContent,
                             onClose = onCloseDetail,
+                            onCycleSplitRatio = onCycleSplitRatio,
                             onPassLessonMockTest = onPassLessonMockTest,
                             onCompleteAssignment = onCompleteAssignment,
                         )
@@ -265,30 +319,44 @@ private fun KovaShellContent(
                 } else {
                     Row(modifier = Modifier.fillMaxSize()) {
                         if (useTabletRail) {
-                            KovaNavigationRail(
-                                selectedTab = uiState.selectedTab,
-                                onTabSelected = onTabSelected,
-                            )
+                            Box(
+                                modifier = Modifier.graphicsLayer {
+                                    alpha = chromeAlpha
+                                    translationX = (1f - chromeAlpha) * -40f
+                                },
+                            ) {
+                                KovaNavigationRail(
+                                    selectedTab = uiState.selectedTab,
+                                    onTabSelected = onTabSelected,
+                                )
+                            }
                         }
 
                         Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
                             Column(modifier = Modifier.fillMaxSize()) {
-                                KovaTopBar(
-                                    isCompactFloating = isCompactFloating,
-                                    isFloatingPreview = uiState.isFloatingPreview,
-                                    devOverrideEnabled = uiState.devUnlockAllOverride,
-                                    onToggleFloating = onToggleFloating,
-                                    onOpenSettings = onOpenSettings,
-                                )
+                                Box(
+                                    modifier = Modifier.graphicsLayer {
+                                        alpha = chromeAlpha
+                                        translationY = (1f - chromeAlpha) * -24f
+                                    },
+                                ) {
+                                    KovaTopBar(
+                                        isCompactFloating = isCompactFloating,
+                                        isFloatingPreview = uiState.isFloatingPreview,
+                                        devOverrideEnabled = uiState.devUnlockAllOverride,
+                                        onToggleFloating = onToggleFloating,
+                                        onOpenSettings = onOpenSettings,
+                                    )
+                                }
 
                                 Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                                     AnimatedContent(
                                         targetState = uiState.selectedTab,
                                         transitionSpec = {
                                             if (motion.enabled) {
-                                                (fadeIn(tween(200)) + scaleIn(
+                                                (fadeIn(tween(210)) + scaleIn(
                                                     initialScale = 0.985f,
-                                                    animationSpec = spring(dampingRatio = 0.75f, stiffness = 340f),
+                                                    animationSpec = spring(dampingRatio = 0.76f, stiffness = 340f),
                                                 )).togetherWith(fadeOut(tween(150)))
                                             } else {
                                                 fadeIn(snap()) togetherWith fadeOut(snap())
@@ -355,7 +423,12 @@ private fun KovaShellContent(
                                     selectedTab = uiState.selectedTab,
                                     isCompactFloating = isCompactFloating,
                                     onTabSelected = onTabSelected,
-                                    modifier = Modifier.align(Alignment.BottomCenter),
+                                    modifier = Modifier
+                                        .align(Alignment.BottomCenter)
+                                        .graphicsLayer {
+                                            alpha = chromeAlpha
+                                            translationY = (1f - chromeAlpha) * 36f
+                                        },
                                 )
                             }
                         }
@@ -450,13 +523,13 @@ private fun KovaTopBar(
                     if (devOverrideEnabled) {
                         Surface(
                             shape = CircleShape,
-                            color = tactile.amberSoft,
-                            border = BorderStroke(1.dp, tactile.amberFace),
+                            color = tactile.coralSoft,
+                            border = BorderStroke(1.dp, tactile.coralFace),
                         ) {
                             Text(
                                 text = "DEV",
                                 style = KovaCodeTextStyle.copy(fontWeight = FontWeight.Bold),
-                                color = tactile.onAmberSoft,
+                                color = tactile.onCoralSoft,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                             )
                         }

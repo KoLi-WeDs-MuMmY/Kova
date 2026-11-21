@@ -40,6 +40,7 @@ import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.TrendingDown
 import androidx.compose.material.icons.outlined.TrendingUp
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -52,6 +53,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -70,6 +73,7 @@ import com.example.ui.components.KovaPillBadge
 import com.example.ui.components.KovaScallopedSealBadge
 import com.example.ui.components.KovaTactileButton
 import com.example.ui.components.KovaTactileCard
+import com.example.ui.feedback.LocalKovaFeedback
 import com.example.ui.theme.KovaCodeTextStyle
 import com.example.ui.theme.KovaExpressiveShapes
 import com.example.ui.theme.LocalKovaMotion
@@ -131,7 +135,7 @@ fun RevisionScreen(
                 targetState = uiState.selectedBinderTab,
                 transitionSpec = {
                     if (motion.enabled) {
-                        (fadeIn(tween(200)) + slideInVertically(spring(dampingRatio = 0.75f, stiffness = 340f)) { it / 16 })
+                        (fadeIn(tween(200)) + slideInVertically(spring(dampingRatio = 0.76f, stiffness = 340f)) { it / 16 })
                             .togetherWith(fadeOut(tween(140)))
                     } else {
                         fadeIn(snap()) togetherWith fadeOut(snap())
@@ -265,8 +269,8 @@ private fun ConceptMasteryRadarCard(
 
                 Surface(
                     shape = RoundedCornerShape(16.dp),
-                    color = tactile.amberSoft,
-                    border = BorderStroke(1.dp, tactile.amberFace.copy(alpha = 0.45f)),
+                    color = tactile.coralSoft,
+                    border = BorderStroke(1.dp, tactile.coralFace.copy(alpha = 0.45f)),
                     modifier = Modifier.weight(1f),
                 ) {
                     Column(
@@ -280,20 +284,20 @@ private fun ConceptMasteryRadarCard(
                             Icon(
                                 imageVector = Icons.Outlined.TrendingDown,
                                 contentDescription = null,
-                                tint = tactile.onAmberSoft,
+                                tint = tactile.onCoralSoft,
                                 modifier = Modifier.size(15.dp),
                             )
                             Text(
                                 text = "WEAK SPOTS",
                                 style = KovaCodeTextStyle.copy(fontWeight = FontWeight.Bold),
-                                color = tactile.onAmberSoft,
+                                color = tactile.onCoralSoft,
                             )
                         }
                         radar.weakSpots.forEach { metric ->
                             Text(
                                 text = "• ${metric.label} (${metric.scorePercent}%)",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = tactile.onAmberSoft,
+                                color = tactile.onCoralSoft,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
@@ -341,6 +345,8 @@ private fun RevisionBinderSegmentedBar(
     onSelectTab: (RevisionBinderTab) -> Unit,
 ) {
     val tactile = LocalKovaTactileColors.current
+    val feedback = LocalKovaFeedback.current
+    val view = LocalView.current
 
     KovaTactileCard(
         shape = KovaExpressiveShapes.Pill,
@@ -379,7 +385,10 @@ private fun RevisionBinderSegmentedBar(
             segments.forEach { (tab, label, tag) ->
                 val isSelected = selectedTab == tab
                 Surface(
-                    onClick = { onSelectTab(tab) },
+                    onClick = {
+                        feedback.tap(view)
+                        onSelectTab(tab)
+                    },
                     shape = KovaExpressiveShapes.Pill,
                     color = if (isSelected) tactile.cobaltFace else Color.Transparent,
                     modifier = Modifier
@@ -456,6 +465,14 @@ private fun HighlightsBinderSection(
         )
 
         val notes = uiState.filteredHighlights
+        BinderSectionHeader(
+            title = "Highlighted Study Notes",
+            count = notes.size,
+            icon = Icons.Outlined.BookmarkBorder,
+            badgeContainerColor = tactile.cobaltSoft,
+            badgeContentColor = tactile.onCobaltSoft,
+        )
+
         if (notes.isEmpty()) {
             KovaTactileCard(
                 shape = KovaExpressiveShapes.StatAndAssignmentCard,
@@ -483,11 +500,14 @@ private fun HighlightsBinderSection(
         }
 
         // Quick Access Chapter Revision Sheets
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = "Chapter Revision Sheets",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onBackground,
+        Spacer(modifier = Modifier.height(6.dp))
+        HorizontalDivider(thickness = 1.dp, color = tactile.cardOutline.copy(alpha = 0.65f))
+        BinderSectionHeader(
+            title = "Chapter Revision Sheets",
+            count = uiState.chapters.size,
+            icon = Icons.Outlined.AutoStories,
+            badgeContainerColor = tactile.emeraldSoft,
+            badgeContentColor = tactile.onEmeraldSoft,
         )
         uiState.chapters.forEach { chapter ->
             KovaTactileCard(
@@ -569,8 +589,8 @@ private fun SpacedRepetitionQueueSection(
                 )
                 KovaPillBadge(
                     text = "${dueNowItems.size}",
-                    containerColor = tactile.amberSoft,
-                    contentColor = tactile.onAmberSoft,
+                    containerColor = tactile.coralSoft,
+                    contentColor = tactile.onCoralSoft,
                     borderColor = Color.Transparent,
                 )
             }
@@ -730,11 +750,53 @@ private fun SpacedRepetitionQueueCard(
 }
 
 @Composable
+private fun BinderSectionHeader(
+    title: String,
+    count: Int,
+    icon: ImageVector,
+    badgeContainerColor: Color,
+    badgeContentColor: Color,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = badgeContentColor,
+                modifier = Modifier.size(18.dp),
+            )
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+        }
+        KovaPillBadge(
+            text = "$count",
+            containerColor = badgeContainerColor,
+            contentColor = badgeContentColor,
+            borderColor = Color.Transparent,
+        )
+    }
+}
+
+@Composable
 private fun HighlightFilterPillsRow(
     selected: HighlightCategory?,
     onSelect: (HighlightCategory?) -> Unit,
 ) {
     val tactile = LocalKovaTactileColors.current
+    val feedback = LocalKovaFeedback.current
+    val view = LocalView.current
     val options: List<Pair<HighlightCategory?, String>> = listOf(
         null to stringResource(R.string.filter_all),
         HighlightCategory.KEY_IDEA to stringResource(R.string.filter_key_idea),
@@ -751,8 +813,17 @@ private fun HighlightFilterPillsRow(
         options.forEach { (category, label) ->
             val isSelected = selected == category
             val accent = category?.accentColor() ?: tactile.cobaltFace
+            val selectedContentColor = when (category) {
+                null -> tactile.onCobaltFace
+                HighlightCategory.KEY_IDEA -> tactile.onAmberFace
+                HighlightCategory.CODE_RULE -> tactile.onEmeraldFace
+                HighlightCategory.GOTCHA -> tactile.onCoralFace
+            }
             Surface(
-                onClick = { onSelect(category) },
+                onClick = {
+                    feedback.tap(view)
+                    onSelect(category)
+                },
                 shape = KovaExpressiveShapes.Pill,
                 color = if (isSelected) accent else tactile.cardFace,
                 border = BorderStroke(1.25.dp, if (isSelected) accent else tactile.cardOutline),
@@ -761,11 +832,7 @@ private fun HighlightFilterPillsRow(
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                    color = if (isSelected) {
-                        if (tactile.isDarkSurface) Color(0xFF141311) else Color.White
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
+                    color = if (isSelected) selectedContentColor else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
                 )
             }

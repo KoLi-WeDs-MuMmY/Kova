@@ -33,6 +33,29 @@ enum class RevisionBinderTab {
     SR_QUEUE,
 }
 
+enum class LessonSplitRatio(
+    val lessonWeight: Float,
+    val ideWeight: Float,
+    val badgeLabel: String,
+) {
+    RATIO_75_25(0.75f, 0.25f, "75:25"),
+    RATIO_50_50(0.50f, 0.50f, "50:50"),
+    RATIO_25_75(0.25f, 0.75f, "25:75");
+
+    fun next(): LessonSplitRatio = when (this) {
+        RATIO_75_25 -> RATIO_50_50
+        RATIO_50_50 -> RATIO_25_75
+        RATIO_25_75 -> RATIO_75_25
+    }
+}
+
+@Immutable
+data class LessonReturnEvent(
+    val lessonId: String,
+    val wasNewlyCompleted: Boolean,
+    val nonce: Long,
+)
+
 @Immutable
 data class Lesson(
     val id: String,
@@ -227,15 +250,22 @@ data class KovaUiState(
     val flashcardSprint: FlashcardSprintState = FlashcardSprintState(),
     val quota: QuotaState = QuotaState(dailyLessonsRemaining = 3),
     val activeDetail: DetailDestination? = null,
+    val lessonSplitRatio: LessonSplitRatio = LessonSplitRatio.RATIO_75_25,
+    val newlyCompletedLessonInSession: String? = null,
+    val lessonReturnEvent: LessonReturnEvent? = null,
     val themeMode: ThemeMode = ThemeMode.WARM_DAYLIGHT,
     val dynamicColorEnabled: Boolean = false,
     val expressiveMotionEnabled: Boolean = true,
+    val soundAndHapticsEnabled: Boolean = true,
     val isFloatingPreview: Boolean = false,
     val devUnlockAllOverride: Boolean = false,
     val isSettingsOpen: Boolean = false,
     val lockedShakeEvent: LockedShakeEvent? = null,
     val snackbarMessage: String? = null,
 ) {
+    val isLessonFocusMode: Boolean
+        get() = activeDetail is DetailDestination.LessonDetail
+
     val activeLesson: Lesson?
         get() {
             val allLessons = chapters.flatMap { it.lessons }

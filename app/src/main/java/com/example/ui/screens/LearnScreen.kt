@@ -5,6 +5,7 @@ import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
@@ -49,7 +50,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -58,6 +61,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -70,6 +74,7 @@ import com.example.model.ChapterAssignment
 import com.example.model.DetailDestination
 import com.example.model.KovaUiState
 import com.example.model.Lesson
+import com.example.model.LessonReturnEvent
 import com.example.model.LessonStatus
 import com.example.ui.components.Kova3DChapterRing
 import com.example.ui.components.Kova3DGoldenTrophyPedestal
@@ -78,11 +83,14 @@ import com.example.ui.components.KovaPillBadge
 import com.example.ui.components.KovaScallopedSealBadge
 import com.example.ui.components.KovaTactileButton
 import com.example.ui.components.KovaTactileCard
+import com.example.ui.components.settleOrCelebrateOnReturn
 import com.example.ui.components.shakeOnTrigger
+import com.example.ui.feedback.LocalKovaFeedback
 import com.example.ui.theme.KovaCodeTextStyle
 import com.example.ui.theme.KovaExpressiveShapes
 import com.example.ui.theme.LocalKovaMotion
 import com.example.ui.theme.LocalKovaTactileColors
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -98,6 +106,27 @@ fun LearnScreen(
     modifier: Modifier = Modifier,
 ) {
     val primaryChapter = uiState.chapters.firstOrNull() ?: return
+    val motion = LocalKovaMotion.current
+    val feedback = LocalKovaFeedback.current
+    val view = LocalView.current
+
+    // Trigger celebratory chime on returning from a newly completed lesson
+    LaunchedEffect(uiState.lessonReturnEvent?.nonce) {
+        val event = uiState.lessonReturnEvent
+        if (event != null && event.wasNewlyCompleted) {
+            delay(110L)
+            feedback.success(view)
+        }
+    }
+
+    // Staggered spring entrance animation for surrounding chrome / telemetry on exit-from-lesson return
+    val returnReveal = remember { Animatable(1f) }
+    LaunchedEffect(uiState.lessonReturnEvent?.nonce, motion.enabled) {
+        if (uiState.lessonReturnEvent != null && motion.enabled) {
+            returnReveal.snapTo(0.86f)
+            returnReveal.animateTo(1f, spring(dampingRatio = 0.76f, stiffness = 340f))
+        }
+    }
 
     if (isWideTabletLayout) {
         Row(
@@ -108,6 +137,7 @@ fun LearnScreen(
         ) {
             LearnChaptersColumn(
                 uiState = uiState,
+                returnRevealProgress = returnReveal.value,
                 sharedTransitionScope = sharedTransitionScope,
                 animatedVisibilityScope = animatedVisibilityScope,
                 onToggleChapterExpanded = onToggleChapterExpanded,
@@ -119,6 +149,7 @@ fun LearnScreen(
             TabletLearnSidePane(
                 uiState = uiState,
                 primaryChapter = primaryChapter,
+                returnRevealProgress = returnReveal.value,
                 onLessonClick = onLessonClick,
                 onAssignmentClick = onAssignmentClick,
                 onRevisionSheetClick = onRevisionSheetClick,
@@ -131,6 +162,7 @@ fun LearnScreen(
     } else {
         LearnChaptersColumn(
             uiState = uiState,
+            returnRevealProgress = returnReveal.value,
             sharedTransitionScope = sharedTransitionScope,
             animatedVisibilityScope = animatedVisibilityScope,
             onToggleChapterExpanded = onToggleChapterExpanded,
@@ -148,6 +180,7 @@ fun LearnScreen(
 @Composable
 private fun LearnChaptersColumn(
     uiState: KovaUiState,
+    returnRevealProgress: Float,
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope,
     onToggleChapterExpanded: (String) -> Unit,
@@ -156,18 +189,27 @@ private fun LearnChaptersColumn(
     onRevisionSheetClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val returnEvent = uiState.lessonReturnEvent
+
     LazyColumn(
         modifier = modifier.testTag("learn_path_list"),
         contentPadding = PaddingValues(top = 6.dp, bottom = 112.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item(key = "daily_quota_strip") {
-            DailyQuotaHeaderStrip(
-                dailyRemaining = uiState.quota.dailyLessonsRemaining,
-                dailyMax = uiState.quota.dailyLessonsMax,
-                completedCount = uiState.chapters.sumOf { it.completedLessonCount },
-                totalCount = uiState.chapters.sumOf { it.lessons.size },
-            )
+            Box(
+                modifier = Modifier.graphicsLayer {
+                    alpha = returnRevealProgress
+                    translationY = (1f - returnRevealProgress) * -28f
+                },
+            ) {
+                DailyQuotaHeaderStrip(
+                    dailyRemaining = uiState.quota.dailyLessonsRemaining,
+                    dailyMax = uiState.quota.dailyLessonsMax,
+                    completedCount = uiState.chapters.sumOf { it.completedLessonCount },
+                    totalCount = uiState.chapters.sumOf { it.lessons.size },
+                )
+            }
         }
 
         items(
@@ -177,12 +219,26 @@ private fun LearnChaptersColumn(
             val chapter = uiState.chapters[index]
             val isExpanded = chapter.id in uiState.expandedChapterIds
             val isChapterUnlocked = chapter.isUnlocked || uiState.devUnlockAllOverride
+            val chapterContainsReturnedLesson = returnEvent != null &&
+                chapter.lessons.any { it.id == returnEvent.lessonId }
+            val ringCelebrationNonce = if (chapterContainsReturnedLesson && returnEvent?.wasNewlyCompleted == true) {
+                returnEvent.nonce
+            } else {
+                null
+            }
 
-            Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+            Column(
+                modifier = Modifier.graphicsLayer {
+                    val staggerShift = (1f - returnRevealProgress) * (24f + index * 18f)
+                    translationY = staggerShift
+                },
+                verticalArrangement = Arrangement.spacedBy(0.dp),
+            ) {
                 Tactile3DChapterCard(
                     chapter = chapter,
                     isUnlocked = isChapterUnlocked,
                     isExpanded = isExpanded,
+                    celebrationNonce = ringCelebrationNonce,
                     sharedTransitionScope = sharedTransitionScope,
                     animatedVisibilityScope = animatedVisibilityScope,
                     onToggleExpand = { onToggleChapterExpanded(chapter.id) },
@@ -195,7 +251,7 @@ private fun LearnChaptersColumn(
                     enter = if (motion.enabled) {
                         expandVertically(
                             animationSpec = spring(
-                                dampingRatio = 0.75f,
+                                dampingRatio = 0.76f,
                                 stiffness = 340f,
                             ),
                         ) + fadeIn(tween(200))
@@ -217,6 +273,7 @@ private fun LearnChaptersColumn(
                         chapter = chapter,
                         isChapterUnlocked = isChapterUnlocked,
                         uiState = uiState,
+                        returnEvent = returnEvent,
                         sharedTransitionScope = sharedTransitionScope,
                         animatedVisibilityScope = animatedVisibilityScope,
                         onLessonClick = onLessonClick,
@@ -257,9 +314,9 @@ private fun DailyQuotaHeaderStrip(
             KovaPillBadge(
                 text = "$dailyRemaining/$dailyMax Daily Lessons Left",
                 leadingIcon = Icons.Filled.Bolt,
-                containerColor = if (dailyRemaining > 0) tactile.amberSoft else tactile.stoneFace,
-                contentColor = if (dailyRemaining > 0) tactile.onAmberSoft else tactile.stoneLabel,
-                borderColor = if (dailyRemaining > 0) tactile.amberFace.copy(alpha = 0.45f) else tactile.stoneLip,
+                containerColor = if (dailyRemaining > 0) tactile.coralSoft else tactile.stoneFace,
+                contentColor = if (dailyRemaining > 0) tactile.onCoralSoft else tactile.stoneLabel,
+                borderColor = if (dailyRemaining > 0) tactile.coralFace.copy(alpha = 0.45f) else tactile.stoneLip,
                 modifier = Modifier.testTag("daily_lessons_pill"),
             )
 
@@ -279,6 +336,7 @@ private fun Tactile3DChapterCard(
     chapter: Chapter,
     isUnlocked: Boolean,
     isExpanded: Boolean,
+    celebrationNonce: Long?,
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope,
     onToggleExpand: () -> Unit,
@@ -291,7 +349,7 @@ private fun Tactile3DChapterCard(
     val chevronRotation by animateFloatAsState(
         targetValue = if (isExpanded) 180f else 0f,
         animationSpec = if (motion.enabled) {
-            spring(dampingRatio = 0.75f, stiffness = 340f)
+            spring(dampingRatio = 0.76f, stiffness = 340f)
         } else {
             snap()
         },
@@ -366,6 +424,7 @@ private fun Tactile3DChapterCard(
                     emblemIconTint = emblemTint,
                     size = 84.dp,
                     strokeWidth = 9.dp,
+                    celebrationNonce = celebrationNonce,
                 )
 
                 Column(
@@ -492,24 +551,19 @@ private fun Tactile3DChapterCard(
     }
 }
 
-/**
- * Sinusoidal S-curve winding quest path using tactile 3D circular/squircle pedestals
- * (80.dp) with 6.dp bottom lips, floating title/duration pills, and a 3D Golden Trophy
- * Pedestal at the end for the Chapter Assignment.
- */
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun ChapterWindingQuestTrail(
     chapter: Chapter,
     isChapterUnlocked: Boolean,
     uiState: KovaUiState,
+    returnEvent: LessonReturnEvent?,
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope,
     onLessonClick: (String) -> Unit,
     onAssignmentClick: (String) -> Unit,
 ) {
     val tactile = LocalKovaTactileColors.current
-    // Smooth sinusoidal S-curve horizontal bias pattern: left -> right -> left -> right
     val curvePattern = listOf(-0.48f, 0.48f, -0.44f, 0.44f)
 
     Column(
@@ -556,12 +610,15 @@ private fun ChapterWindingQuestTrail(
             } else {
                 null
             }
+            val isReturnedLesson = returnEvent?.lessonId == lesson.id
 
             WindingQuestPedestalNode(
                 lesson = lesson,
                 horizontalBias = currentBias,
                 isChapterUnlocked = isChapterUnlocked,
                 shakeNonce = shakeNonce,
+                returnNonce = if (isReturnedLesson) returnEvent?.nonce else null,
+                returnCelebration = isReturnedLesson && (returnEvent?.wasNewlyCompleted == true),
                 sharedTransitionScope = sharedTransitionScope,
                 animatedVisibilityScope = animatedVisibilityScope,
                 onClick = { onLessonClick(lesson.id) },
@@ -574,15 +631,20 @@ private fun ChapterWindingQuestTrail(
                     startBias = currentBias,
                     endBias = nextBias,
                     isCompleted = connectorCompleted,
+                    celebrationNonce = if (isReturnedLesson && returnEvent?.wasNewlyCompleted == true) {
+                        returnEvent.nonce
+                    } else {
+                        null
+                    },
                 )
             }
         }
 
-        // Stepping trail converging smoothly into the Golden Trophy Pedestal at center
         SinusoidalSteppingTrailConnector(
             startBias = curvePattern[(chapter.lessons.size - 1).coerceAtLeast(0) % curvePattern.size],
             endBias = 0f,
             isCompleted = isChapterUnlocked && chapter.assignment.isUnlocked,
+            celebrationNonce = null,
         )
 
         GoldenTrophyAssignmentNode(
@@ -600,15 +662,25 @@ private fun SinusoidalSteppingTrailConnector(
     startBias: Float,
     endBias: Float,
     isCompleted: Boolean,
+    celebrationNonce: Long?,
 ) {
     val motion = LocalKovaMotion.current
     val tactile = LocalKovaTactileColors.current
 
     val lineColor by animateColorAsState(
         targetValue = if (isCompleted) tactile.emeraldFace else tactile.pathInactive,
-        animationSpec = if (motion.enabled) tween(340) else snap(),
+        animationSpec = if (motion.enabled) tween(360) else snap(),
         label = "sinusoidal_connector_color",
     )
+
+    val strokeBoost = remember { Animatable(1f) }
+    LaunchedEffect(celebrationNonce, motion.enabled) {
+        if (celebrationNonce != null && motion.enabled) {
+            strokeBoost.snapTo(1f)
+            strokeBoost.animateTo(1.45f, spring(dampingRatio = 0.55f, stiffness = 420f))
+            strokeBoost.animateTo(1f, spring(dampingRatio = 0.76f, stiffness = 340f))
+        }
+    }
 
     Canvas(
         modifier = Modifier
@@ -637,12 +709,12 @@ private fun SinusoidalSteppingTrailConnector(
             drawPath(
                 path = path,
                 color = tactile.emeraldLip.copy(alpha = 0.35f),
-                style = Stroke(width = 11.dp.toPx(), cap = StrokeCap.Round),
+                style = Stroke(width = (11.dp * strokeBoost.value).toPx(), cap = StrokeCap.Round),
             )
             drawPath(
                 path = path,
                 color = lineColor,
-                style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round),
+                style = Stroke(width = (6.dp * strokeBoost.value).toPx(), cap = StrokeCap.Round),
             )
         } else {
             drawPath(
@@ -665,6 +737,8 @@ private fun WindingQuestPedestalNode(
     horizontalBias: Float,
     isChapterUnlocked: Boolean,
     shakeNonce: Long?,
+    returnNonce: Long?,
+    returnCelebration: Boolean,
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope,
     onClick: () -> Unit,
@@ -673,7 +747,6 @@ private fun WindingQuestPedestalNode(
     val tactile = LocalKovaTactileColors.current
     val effectiveStatus = if (!isChapterUnlocked) LessonStatus.LOCKED else lesson.status
     val isActiveUnlocked = effectiveStatus == LessonStatus.UNLOCKED
-    val isCompleted = effectiveStatus == LessonStatus.COMPLETED
 
     val pedestalFace = when (effectiveStatus) {
         LessonStatus.COMPLETED -> tactile.emeraldFace
@@ -703,7 +776,12 @@ private fun WindingQuestPedestalNode(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 10.dp)
-            .shakeOnTrigger(triggerNonce = shakeNonce, enabled = motion.enabled),
+            .shakeOnTrigger(triggerNonce = shakeNonce, enabled = motion.enabled)
+            .settleOrCelebrateOnReturn(
+                returnNonce = returnNonce,
+                isCelebration = returnCelebration,
+                enabled = motion.enabled,
+            ),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = if (pedestalOnLeft) Arrangement.Start else Arrangement.End,
     ) {
@@ -812,9 +890,9 @@ private fun FloatingLessonInfoPill(
                 if (isActive) {
                     KovaPillBadge(
                         text = stringResource(R.string.start_pill),
-                        containerColor = tactile.cobaltFace,
-                        contentColor = tactile.onCobaltFace,
-                        borderColor = tactile.cobaltLip,
+                        containerColor = tactile.coralFace,
+                        contentColor = tactile.onCoralFace,
+                        borderColor = tactile.coralLip,
                     )
                 } else if (isCompleted) {
                     KovaPillBadge(
@@ -939,9 +1017,6 @@ private fun GoldenTrophyAssignmentNode(
     }
 }
 
-/**
- * Shared Chapter Assignment card used inside LabScreen's Assignments Hub.
- */
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun ChapterAssignmentPathCard(
@@ -1081,6 +1156,7 @@ fun ChapterAssignmentPathCard(
 private fun TabletLearnSidePane(
     uiState: KovaUiState,
     primaryChapter: Chapter,
+    returnRevealProgress: Float,
     onLessonClick: (String) -> Unit,
     onAssignmentClick: (String) -> Unit,
     onRevisionSheetClick: (String) -> Unit,
@@ -1093,7 +1169,12 @@ private fun TabletLearnSidePane(
     val overallProgress = if (totalLessons == 0) 0f else completedLessons.toFloat() / totalLessons
 
     Column(
-        modifier = modifier.testTag("tablet_learn_side_pane"),
+        modifier = modifier
+            .graphicsLayer {
+                alpha = returnRevealProgress
+                translationX = (1f - returnRevealProgress) * 36f
+            }
+            .testTag("tablet_learn_side_pane"),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         KovaTactileCard(
@@ -1130,6 +1211,11 @@ private fun TabletLearnSidePane(
                         emblemIconTint = tactile.onAmberFace,
                         size = 78.dp,
                         strokeWidth = 8.dp,
+                        celebrationNonce = if (uiState.lessonReturnEvent?.wasNewlyCompleted == true) {
+                            uiState.lessonReturnEvent.nonce
+                        } else {
+                            null
+                        },
                     )
                     Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text(

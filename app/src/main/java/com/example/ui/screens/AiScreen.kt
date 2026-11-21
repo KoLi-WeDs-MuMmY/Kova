@@ -39,11 +39,14 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.BookmarkAdd
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -60,6 +63,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -73,6 +77,7 @@ import com.example.model.KovaUiState
 import com.example.ui.components.KovaPillBadge
 import com.example.ui.components.KovaTactileButton
 import com.example.ui.components.KovaTactileCard
+import com.example.ui.feedback.LocalKovaFeedback
 import com.example.ui.theme.KovaCodeTextStyle
 import com.example.ui.theme.KovaExpressiveShapes
 import com.example.ui.theme.LocalKovaMotion
@@ -208,6 +213,8 @@ private fun AiChatMainPane(
     modifier: Modifier = Modifier,
 ) {
     val tactile = LocalKovaTactileColors.current
+    val feedback = LocalKovaFeedback.current
+    val view = LocalView.current
     val listState = rememberLazyListState()
     val messages = uiState.activeThreadMessages
     val activeThread = uiState.activeThread
@@ -228,12 +235,12 @@ private fun AiChatMainPane(
         modifier = modifier.padding(bottom = if (isWideTabletLayout) 14.dp else 94.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        // Compact Top Context & Quota Strip
+        // Structured Header: Active Lesson Pill + Collapsible Session Selector + 3-Metric Quota Summary
         KovaTactileCard(
             shape = KovaExpressiveShapes.StatAndAssignmentCard,
             faceColor = tactile.cardFace,
             lipColor = tactile.cobaltLip,
-            borderColor = tactile.cobaltFace.copy(alpha = 0.5f),
+            borderColor = tactile.cobaltFace.copy(alpha = 0.55f),
             lipHeight = 4.dp,
             modifier = Modifier
                 .fillMaxWidth()
@@ -242,35 +249,14 @@ private fun AiChatMainPane(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 13.dp, vertical = 11.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    if (!isWideTabletLayout) {
-                        Surface(
-                            onClick = onOpenHistoryDrawer,
-                            shape = CircleShape,
-                            color = tactile.cobaltSoft,
-                            border = BorderStroke(1.dp, tactile.cobaltFace.copy(alpha = 0.4f)),
-                            modifier = Modifier
-                                .size(40.dp)
-                                .testTag("open_chat_history_button"),
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Outlined.History,
-                                    contentDescription = stringResource(R.string.cd_open_history),
-                                    tint = tactile.onCobaltSoft,
-                                    modifier = Modifier.size(20.dp),
-                                )
-                            }
-                        }
-                    }
-
                     KovaPillBadge(
                         text = scopedLabel,
                         leadingIcon = Icons.Outlined.Lock,
@@ -280,33 +266,78 @@ private fun AiChatMainPane(
                         useMonospace = false,
                         modifier = Modifier.weight(1f),
                     )
+
+                    if (!isWideTabletLayout) {
+                        Surface(
+                            onClick = {
+                                feedback.tap(view)
+                                onOpenHistoryDrawer()
+                            },
+                            shape = KovaExpressiveShapes.Pill,
+                            color = MaterialTheme.colorScheme.surfaceContainerLow,
+                            border = BorderStroke(1.dp, tactile.cardOutline),
+                            modifier = Modifier
+                                .height(36.dp)
+                                .testTag("open_chat_history_button"),
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.History,
+                                    contentDescription = stringResource(R.string.cd_open_history),
+                                    tint = tactile.cobaltFace,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                                Text(
+                                    text = "${uiState.chatThreads.size}",
+                                    style = KovaCodeTextStyle.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                )
+                                Icon(
+                                    imageVector = Icons.Outlined.ExpandMore,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(15.dp),
+                                )
+                            }
+                        }
+                    }
                 }
 
-                // Quota Strip: Morning Digest · Active Pool · SR Reserve
+                HorizontalDivider(
+                    thickness = 1.dp,
+                    color = tactile.cardOutline.copy(alpha = 0.7f),
+                )
+
+                // Structured 3-Column Quota Telemetry Row
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    KovaPillBadge(
-                        text = "Morning Digest: ${uiState.quota.morningDigestStatus}",
+                    AiQuotaMetricChip(
+                        label = "DIGEST",
+                        value = uiState.quota.morningDigestStatus,
                         containerColor = tactile.emeraldSoft,
                         contentColor = tactile.onEmeraldSoft,
-                        borderColor = Color.Transparent,
+                        modifier = Modifier.weight(1f),
                     )
-                    KovaPillBadge(
-                        text = "Active Pool: ${uiState.quota.activeAiPoolRemaining}/${uiState.quota.activeAiPoolMax}",
+                    AiQuotaMetricChip(
+                        label = "ACTIVE POOL",
+                        value = "${uiState.quota.activeAiPoolRemaining}/${uiState.quota.activeAiPoolMax}",
                         containerColor = tactile.cobaltSoft,
                         contentColor = tactile.onCobaltSoft,
-                        borderColor = Color.Transparent,
+                        modifier = Modifier.weight(1f),
                     )
-                    KovaPillBadge(
-                        text = "SR Reserve: ${uiState.quota.spacedRepetitionReserve}",
+                    AiQuotaMetricChip(
+                        label = "SR RESERVE",
+                        value = "${uiState.quota.spacedRepetitionReserve} saved",
                         containerColor = tactile.amberSoft,
                         contentColor = tactile.onAmberSoft,
-                        borderColor = Color.Transparent,
+                        modifier = Modifier.weight(1f),
                     )
                 }
             }
@@ -340,7 +371,10 @@ private fun AiChatMainPane(
         ) {
             QuickPromptTemplates.forEachIndexed { index, chipText ->
                 Surface(
-                    onClick = { onInsertQuickPrompt(chipText) },
+                    onClick = {
+                        feedback.tap(view)
+                        onInsertQuickPrompt(chipText)
+                    },
                     shape = KovaExpressiveShapes.Pill,
                     color = tactile.cardFace,
                     border = BorderStroke(1.dp, tactile.cardOutline),
@@ -401,7 +435,10 @@ private fun AiChatMainPane(
 
                 val canSend = uiState.chatComposerText.isNotBlank()
                 Surface(
-                    onClick = onSendMessage,
+                    onClick = {
+                        feedback.tap(view)
+                        onSendMessage()
+                    },
                     enabled = canSend,
                     shape = CircleShape,
                     color = if (canSend) tactile.emeraldFace else tactile.stoneFace,
@@ -428,16 +465,116 @@ private fun AiChatMainPane(
 }
 
 @Composable
+private fun AiQuotaMetricChip(
+    label: String,
+    value: String,
+    containerColor: Color,
+    contentColor: Color,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = containerColor,
+        modifier = modifier,
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(1.dp),
+        ) {
+            Text(
+                text = label,
+                style = KovaCodeTextStyle.copy(fontWeight = FontWeight.SemiBold),
+                color = contentColor.copy(alpha = 0.78f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                color = contentColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+private data class TutorContentSegment(
+    val text: String,
+    val isCodeBlock: Boolean,
+)
+
+private fun parseTutorContentSegments(raw: String): List<TutorContentSegment> {
+    val segments = mutableListOf<TutorContentSegment>()
+    val lines = raw.lines()
+    val proseBuffer = StringBuilder()
+    val codeBuffer = StringBuilder()
+    var inFencedCode = false
+
+    fun flushProse() {
+        val text = proseBuffer.toString().trim()
+        if (text.isNotEmpty()) segments += TutorContentSegment(text, isCodeBlock = false)
+        proseBuffer.clear()
+    }
+
+    fun flushCode() {
+        val text = codeBuffer.toString().trim()
+        if (text.isNotEmpty()) segments += TutorContentSegment(text, isCodeBlock = true)
+        codeBuffer.clear()
+    }
+
+    lines.forEach { line ->
+        val trimmed = line.trim()
+        if (trimmed.startsWith("```")) {
+            if (inFencedCode) {
+                flushCode()
+                inFencedCode = false
+            } else {
+                flushProse()
+                inFencedCode = true
+            }
+        } else if (inFencedCode) {
+            codeBuffer.appendLine(line)
+        } else {
+            val looksLikeCodeLine = trimmed.startsWith("val ") ||
+                trimmed.startsWith("var ") ||
+                trimmed.startsWith("fun ") ||
+                trimmed.startsWith("println(") ||
+                trimmed.startsWith("if (") ||
+                trimmed.startsWith("for (") ||
+                trimmed.startsWith("when (") ||
+                trimmed.startsWith("// ") ||
+                (trimmed.startsWith("`") && trimmed.endsWith("`") && trimmed.length > 4)
+            if (looksLikeCodeLine) {
+                flushProse()
+                codeBuffer.appendLine(trimmed.removeSurrounding("`"))
+            } else {
+                flushCode()
+                proseBuffer.appendLine(line)
+            }
+        }
+    }
+    flushCode()
+    flushProse()
+
+    return if (segments.isEmpty()) listOf(TutorContentSegment(raw, isCodeBlock = false)) else segments
+}
+
+@Composable
 private fun AiChatBubble(
     message: ChatMessage,
     onSaveToNotes: (HighlightCategory) -> Unit,
 ) {
     val tactile = LocalKovaTactileColors.current
     val motion = LocalKovaMotion.current
+    val feedback = LocalKovaFeedback.current
+    val view = LocalView.current
     var showCategoryPicker by remember(message.id) { mutableStateOf(false) }
 
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
         horizontalAlignment = if (message.isFromUser) Alignment.End else Alignment.Start,
     ) {
         if (message.isFromUser) {
@@ -445,11 +582,11 @@ private fun AiChatBubble(
                 shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 20.dp, bottomEnd = 6.dp),
                 color = tactile.cobaltFace,
                 border = BorderStroke(1.25.dp, tactile.cobaltLip),
-                modifier = Modifier.widthIn(max = 320.dp),
+                modifier = Modifier.widthIn(max = 310.dp),
             ) {
                 Column(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.padding(horizontal = 15.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp),
                 ) {
                     Text(
                         text = message.content,
@@ -465,6 +602,10 @@ private fun AiChatBubble(
                 }
             }
         } else {
+            val segments = remember(message.id, message.content) {
+                parseTutorContentSegments(message.content)
+            }
+
             KovaTactileCard(
                 shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 6.dp, bottomEnd = 20.dp),
                 faceColor = tactile.cardFace,
@@ -474,7 +615,7 @@ private fun AiChatBubble(
                 modifier = Modifier.fillMaxWidth(0.95f),
             ) {
                 Column(
-                    modifier = Modifier.padding(14.dp),
+                    modifier = Modifier.padding(15.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     Row(
@@ -505,13 +646,51 @@ private fun AiChatBubble(
                         )
                     }
 
-                    Text(
-                        text = message.content,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
+                    segments.forEach { segment ->
+                        if (segment.isCodeBlock) {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                                border = BorderStroke(1.dp, tactile.cardOutline),
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(11.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.Code,
+                                            contentDescription = null,
+                                            tint = tactile.cobaltFace,
+                                            modifier = Modifier.size(14.dp),
+                                        )
+                                        Text(
+                                            text = "KOTLIN",
+                                            style = KovaCodeTextStyle.copy(fontWeight = FontWeight.Bold),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                    Text(
+                                        text = segment.text,
+                                        style = KovaCodeTextStyle,
+                                        color = tactile.cobaltFace,
+                                    )
+                                }
+                            }
+                        } else {
+                            Text(
+                                text = segment.text,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                    }
 
-                    // Feature #2: 1-Tap "Save AI Answer to Revision Notes"
+                    // 1-Tap "Save AI Answer to Revision Notes"
                     val isSaved = message.savedNoteId != null
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -521,6 +700,7 @@ private fun AiChatBubble(
                         Surface(
                             onClick = {
                                 if (!isSaved) {
+                                    feedback.tap(view)
                                     showCategoryPicker = !showCategoryPicker
                                 }
                             },
@@ -559,7 +739,7 @@ private fun AiChatBubble(
                     AnimatedVisibility(
                         visible = showCategoryPicker && !isSaved,
                         enter = if (motion.enabled) {
-                            expandVertically(spring(dampingRatio = 0.75f, stiffness = 340f)) + fadeIn()
+                            expandVertically(spring(dampingRatio = 0.76f, stiffness = 340f)) + fadeIn()
                         } else {
                             expandVertically(snap()) + fadeIn(snap())
                         },
@@ -579,6 +759,7 @@ private fun AiChatBubble(
                                 val tagColor = category.accentColor()
                                 Surface(
                                     onClick = {
+                                        feedback.success(view)
                                         showCategoryPicker = false
                                         onSaveToNotes(category)
                                     },

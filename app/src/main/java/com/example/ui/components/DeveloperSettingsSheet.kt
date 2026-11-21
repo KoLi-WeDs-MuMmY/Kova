@@ -21,6 +21,7 @@ import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material.icons.outlined.NightsStay
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.RestartAlt
+import androidx.compose.material.icons.outlined.VolumeUp
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -36,12 +37,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.R
 import com.example.model.KovaUiState
+import com.example.ui.feedback.LocalKovaFeedback
 import com.example.ui.theme.KovaCodeTextStyle
 import com.example.ui.theme.KovaExpressiveShapes
 import com.example.ui.theme.LocalKovaTactileColors
@@ -55,11 +58,14 @@ fun DeveloperSettingsSheet(
     onThemeModeSelected: (ThemeMode) -> Unit,
     onDynamicColorChanged: (Boolean) -> Unit,
     onExpressiveMotionChanged: (Boolean) -> Unit,
+    onSoundAndHapticsChanged: (Boolean) -> Unit,
     onDevOverrideChanged: (Boolean) -> Unit,
     onResetProgress: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val tactile = LocalKovaTactileColors.current
+    val feedback = LocalKovaFeedback.current
+    val view = LocalView.current
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -88,16 +94,16 @@ fun DeveloperSettingsSheet(
                         color = MaterialTheme.colorScheme.onBackground,
                     )
                     Text(
-                        text = "Phase 2 Tactile Theme, Motion & Testing Controls",
+                        text = "Grounded Tactile Themes, Motion, Sound & Controls",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 KovaPillBadge(
-                    text = "PHASE 2",
-                    containerColor = tactile.cobaltSoft,
-                    contentColor = tactile.onCobaltSoft,
-                    borderColor = tactile.cobaltFace.copy(alpha = 0.35f),
+                    text = "PHASE 1.3",
+                    containerColor = tactile.coralSoft,
+                    contentColor = tactile.onCoralSoft,
+                    borderColor = tactile.coralFace.copy(alpha = 0.45f),
                 )
             }
 
@@ -124,7 +130,7 @@ fun DeveloperSettingsSheet(
                     )
                     ThemeModeChip(
                         label = stringResource(R.string.settings_theme_warm_dark),
-                        hexTag = "#141311",
+                        hexTag = "#141210",
                         icon = Icons.Outlined.DarkMode,
                         selected = uiState.themeMode == ThemeMode.WARM_DARK,
                         onClick = { onThemeModeSelected(ThemeMode.WARM_DARK) },
@@ -158,7 +164,10 @@ fun DeveloperSettingsSheet(
                 },
                 checked = uiState.dynamicColorEnabled,
                 enabled = supportsDynamic,
-                onCheckedChange = onDynamicColorChanged,
+                onCheckedChange = {
+                    feedback.tap(view)
+                    onDynamicColorChanged(it)
+                },
                 testTag = "toggle_dynamic_color",
             )
 
@@ -168,8 +177,26 @@ fun DeveloperSettingsSheet(
                 subtitle = stringResource(R.string.settings_motion_desc),
                 checked = uiState.expressiveMotionEnabled,
                 enabled = true,
-                onCheckedChange = onExpressiveMotionChanged,
+                onCheckedChange = {
+                    feedback.tap(view)
+                    onExpressiveMotionChanged(it)
+                },
                 testTag = "toggle_expressive_motion",
+            )
+
+            SettingsToggleRow(
+                icon = Icons.Outlined.VolumeUp,
+                title = stringResource(R.string.settings_sound_haptics_title),
+                subtitle = stringResource(R.string.settings_sound_haptics_desc),
+                checked = uiState.soundAndHapticsEnabled,
+                enabled = true,
+                onCheckedChange = { next ->
+                    onSoundAndHapticsChanged(next)
+                    if (next) {
+                        com.example.ui.feedback.KovaFeedbackController(enabled = true).tap(view)
+                    }
+                },
+                testTag = "toggle_sound_haptics",
             )
 
             HorizontalDivider(color = tactile.cardOutline)
@@ -193,7 +220,7 @@ fun DeveloperSettingsSheet(
                         contentDescription = null,
                         containerColor = tactile.amberFace,
                         lipColor = tactile.amberLip,
-                        contentColor = Color.White,
+                        contentColor = tactile.onAmberFace,
                         size = 42.dp,
                         iconSize = 20.dp,
                     )
@@ -214,7 +241,10 @@ fun DeveloperSettingsSheet(
                     Spacer(modifier = Modifier.width(8.dp))
                     Switch(
                         checked = uiState.devUnlockAllOverride,
-                        onCheckedChange = onDevOverrideChanged,
+                        onCheckedChange = {
+                            feedback.tap(view)
+                            onDevOverrideChanged(it)
+                        },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Color.White,
                             checkedTrackColor = tactile.amberFace,
@@ -266,7 +296,7 @@ private fun ThemeModeChip(
     val face = if (selected) tactile.cobaltFace else tactile.cardFace
     val lip = if (selected) tactile.cobaltLip else tactile.cardLip
     val border = if (selected) tactile.cobaltLip else tactile.cardOutline
-    val contentColor = if (selected) Color.White else MaterialTheme.colorScheme.onSurface
+    val contentColor = if (selected) tactile.onCobaltFace else MaterialTheme.colorScheme.onSurface
 
     KovaTactileCard(
         shape = KovaExpressiveShapes.StatAndAssignmentCard,

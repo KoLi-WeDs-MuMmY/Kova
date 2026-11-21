@@ -2,6 +2,7 @@ package com.example
 
 import com.example.model.HighlightCategory
 import com.example.model.KovaTab
+import com.example.model.LessonSplitRatio
 import com.example.model.LessonStatus
 import com.example.model.NoteSource
 import com.example.model.RevisionBinderTab
@@ -163,5 +164,60 @@ class KovaViewModelTest {
         assertEquals(1, vm.uiState.value.flashcardSprint.gotItCount)
 
         vm.togglePauseFlashcardSprint()
+    }
+
+    @Test
+    fun lessonSplitRatioCyclesSmoothlyThroughAllThreePresets() {
+        val vm = KovaViewModel()
+        assertEquals(LessonSplitRatio.RATIO_75_25, vm.uiState.value.lessonSplitRatio)
+
+        vm.cycleLessonSplitRatio()
+        assertEquals(LessonSplitRatio.RATIO_50_50, vm.uiState.value.lessonSplitRatio)
+
+        vm.cycleLessonSplitRatio()
+        assertEquals(LessonSplitRatio.RATIO_25_75, vm.uiState.value.lessonSplitRatio)
+
+        vm.cycleLessonSplitRatio()
+        assertEquals(LessonSplitRatio.RATIO_75_25, vm.uiState.value.lessonSplitRatio)
+    }
+
+    @Test
+    fun soundAndHapticsDefaultsOnAndCanBeToggled() {
+        val vm = KovaViewModel()
+        assertTrue(vm.uiState.value.soundAndHapticsEnabled)
+
+        vm.setSoundAndHapticsEnabled(false)
+        assertFalse(vm.uiState.value.soundAndHapticsEnabled)
+
+        vm.setSoundAndHapticsEnabled(true)
+        assertTrue(vm.uiState.value.soundAndHapticsEnabled)
+    }
+
+    @Test
+    fun lessonFocusModeAndReturnEventTrackNormalAndCelebratoryExits() {
+        val vm = KovaViewModel()
+        assertFalse(vm.uiState.value.isLessonFocusMode)
+
+        // Open and close without completing -> non-celebratory settle event
+        vm.openLesson("l_1_1")
+        assertTrue(vm.uiState.value.isLessonFocusMode)
+
+        vm.closeDetail()
+        assertFalse(vm.uiState.value.isLessonFocusMode)
+        val firstReturn = vm.uiState.value.lessonReturnEvent
+        assertNotNull(firstReturn)
+        assertEquals("l_1_1", firstReturn!!.lessonId)
+        assertFalse(firstReturn.wasNewlyCompleted)
+
+        // Open, pass mock test, then exit -> celebratory bounce event
+        vm.openLesson("l_1_1")
+        vm.passLessonMockTest("l_1_1", scorePercent = 90)
+        vm.closeDetail()
+
+        val secondReturn = vm.uiState.value.lessonReturnEvent
+        assertNotNull(secondReturn)
+        assertEquals("l_1_1", secondReturn!!.lessonId)
+        assertTrue(secondReturn.wasNewlyCompleted)
+        assertTrue(secondReturn.nonce > firstReturn.nonce)
     }
 }
