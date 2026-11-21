@@ -48,19 +48,24 @@ This document preserves the North Star vision, Phase 1 deliverable contract, and
   - Clicking a Chapter Card toggles its dropped-down lesson trail using `AnimatedVisibility(expandVertically(spring(dampingRatio = 0.72f, stiffness = 320f)) + fadeIn())` (Chapter 1 starts expanded; Chapter 2 starts collapsed and can be tapped to peek at locked nodes and the amber gate banner).
   - Preserves all ViewModel state, `MockLearningRepository` data, mastery gating, Learn↔Lab assignment sync, Dev Override, and shared-element `SharedTransitionLayout` transforms across all 4 tabs.
 
+## Part B.2: Phase 2 Tactile Dark/AMOLED, 3D Quest Path, Room Persistence & AI/Revision Workspaces (Implemented)
+
+- **Warm Charcoal Dark & True AMOLED Themes**:
+  - Preserves **Warm Daylight** (`#FBF8F3`) untouched; introduces **Warm Charcoal Dark** (`#141311` background, `#1D1B18` / `#26231F` / `#302C27` layered surfaces, `#3E3932` warm borders, Warm Emerald `#34D399`/`#059669`, Warm Sky-Cobalt `#60A5FA`/`#2563EB`, Warm Amber `#FBBF24`/`#D97706`) and **True AMOLED** (`#000000` canvas, `#121212` / `#1A1A1A` tactile cards with crisp `1.dp` `#2C2C2C` outlines and `4.dp`–`5.dp` 3D lips).
+  - Clean 3-way selector (`Daylight` / `Warm Dark` / `AMOLED`) in Settings.
+- **3D Winding Quest Path & Ambient Moving Material Objects**:
+  - Inside dropped-down chapters, lessons render as tactile `80.dp` 3D squircle Quest Pedestals (`Kova3DQuestPedestal`) with `6.dp` bottom lips, press-down spring physics, floating title/duration pills, pulsing crown/ring on the active quest, sinusoidal stepping trails, and a **3D Golden Trophy Pedestal** (`Kova3DGoldenTrophyPedestal`) for each Chapter Assignment.
+  - Added `AmbientMaterialCanvas` rendering 5 subtle low-opacity (`0.055f–0.072f`) M3 geometric shapes gently drifting/rotating on slow infinite loops and pausing statically when Tactile Spring Motion is OFF.
+  - Spring-damped (`spring(dampingRatio = 0.75f, stiffness = 340f)`) transitions across tab switches, chapter drop-downs, binder segments, and tag pickers.
+- **Room SQLite Local Persistence & AI / Revision Workspaces**:
+  - Added Room + KSP database (`KovaDatabase`, `ChatDao`, `RevisionDao`, `RoomStudyPersistenceRepository`) storing AI threads/messages, saved Revision notes, and Spaced-Repetition flashcard progress across restarts.
+  - **AI Tab Makeover**: Compact Top Context & Quota Strip (`Morning Digest`, `Active Pool`, `SR Reserve`), collapsible slide-over Chat History Drawer (or split-pane on `>= 700.dp` tablets) with search/pin/delete/New Thread, editable Quick-Prompt Chips, and 1-tap **"Save to Notes"** (`Key Idea` / `Code Rule` / `Gotcha`) on every AI bubble.
+  - **Revision Study Binder Makeover**: Top **Concept Mastery & Mistake Radar Card** with 1-tap **"Focus Next"**, segmented binder (`Highlights` | `Flashcards` | `SR Queue`), offline **60-Second 3D Flashcard Flip Mode** (live countdown, Pause/Resume/Restart, real Y-axis `rotationY` flip, `"Review Again"` / `"Got It"` SR updates, sprint summary), and Due Now vs. Upcoming SR queue.
+
 ---
 
-## Part C: Phase Boundaries & Upcoming Phases
+## Part C: Upcoming Phase 3 (Live Gemini AI, Interactive Lessons & Lab Prompt Builder)
 
-### Strict Phase 1 Guardrails (Enforced)
-- Clean MVVM (`KovaViewModel` + `StateFlow<KovaUiState>` + strongly typed domain models).
-- All mock data isolated inside `MockLearningRepository` (behind `LearningRepository` interface) so future phases swap persistence cleanly without touching UI shells or transitions.
-- No live Gemini API calls, no TTS engines, no full curriculum text, and no database persistence in Phase 1.
-
-### Planned Phase 2 (Interactive Curriculum & Local Persistence)
-- Replace `MockLearningRepository` with Room / Firestore-backed curriculum repository.
-- Implement interactive lesson reading with text highlighting (`Yellow` / `Green` / `Pink`), Debugger Line Animation + live Variable Watch panel, Desired Output + collapsible Solution, and real >= 80% Lesson Tests.
-
-### Planned Phase 3 (Lab Prompt Builder & Scoped AI Tutor)
-- Implement interactive `<Folder>` / `<File>` tree builder & prompt bundler in `Lab`.
-- Integrate Firebase AI Logic (`Firebase.ai`) for the Scoped Lesson Tutor, Morning Digest, Learner Behavior Profile, and timed Spaced-Repetition pop-ups within the Daily Quota Manager.
+- **Interactive Lesson Reader & Debugger**: Full curriculum text with interactive highlighting, step-by-step Debugger Line Animation + live Variable Watch panel, Desired Output + collapsible Show Solution, and real >= 80% Lesson Tests.
+- **Lab Virtual Prompt Builder**: Interactive `<Folder>` / `<File>` tree builder & single-prompt bundler in `Lab`.
+- **Live Firebase AI Logic (`Firebase.ai`)**: Swap `LocalLessonTutorEngine` behind the existing ViewModel/Repository boundary for live scoped Gemini tutoring, Morning Digest summaries, Learner Behavior Profile, and timed Spaced-Repetition pop-ups.

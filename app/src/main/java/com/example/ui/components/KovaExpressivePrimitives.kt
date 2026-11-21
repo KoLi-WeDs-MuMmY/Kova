@@ -1,8 +1,13 @@
 package com.example.ui.components
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -26,6 +31,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -68,7 +76,7 @@ fun KovaTactileCard(
     lipColor: Color = LocalKovaTactileColors.current.cardLip,
     borderColor: Color = LocalKovaTactileColors.current.cardOutline,
     lipHeight: Dp = 5.dp,
-    borderWidth: Dp = 1.5.dp,
+    borderWidth: Dp = LocalKovaTactileColors.current.cardBorderWidthDp.dp,
     onClick: (() -> Unit)? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
@@ -144,11 +152,11 @@ fun KovaTactileButton(
     modifier: Modifier = Modifier,
     faceColor: Color = LocalKovaTactileColors.current.emeraldFace,
     lipColor: Color = LocalKovaTactileColors.current.emeraldLip,
-    contentColor: Color = Color.White,
+    contentColor: Color = LocalKovaTactileColors.current.onEmeraldFace,
     borderColor: Color = Color.Transparent,
     shape: Shape = KovaExpressiveShapes.Pill,
     lipHeight: Dp = 5.dp,
-    minHeight: Dp = 52.dp,
+    minHeight: Dp = 50.dp,
     enabled: Boolean = true,
     content: @Composable RowScope.() -> Unit,
 ) {
@@ -203,7 +211,7 @@ fun KovaTactileButton(
                 .background(effectiveFace)
                 .then(
                     if (borderColor != Color.Transparent) {
-                        Modifier.border(BorderStroke(1.5.dp, borderColor), shape)
+                        Modifier.border(BorderStroke(1.25.dp, borderColor), shape)
                     } else {
                         Modifier
                     },
@@ -214,6 +222,206 @@ fun KovaTactileButton(
             content = content,
         )
     }
+}
+
+/**
+ * Tactile 3D circular/squircle Quest Pedestal (78.dp–84.dp) for the winding S-curve lesson path.
+ * Features a physical 6.dp bottom lip, downward spring press physics, subtle haptic tick,
+ * and an optional animated pulsing crown ring on the active quest node (zero neon glow).
+ */
+@Composable
+fun Kova3DQuestPedestal(
+    icon: ImageVector,
+    contentDescription: String?,
+    faceColor: Color,
+    lipColor: Color,
+    iconTint: Color,
+    isActiveQuest: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    pedestalSize: Dp = 80.dp,
+    lipHeight: Dp = 6.dp,
+    shape: Shape = KovaExpressiveShapes.LessonSquircleNode,
+) {
+    val motion = LocalKovaMotion.current
+    val haptic = LocalHapticFeedback.current
+    val tactile = LocalKovaTactileColors.current
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
+    LaunchedEffect(isPressed) {
+        if (isPressed) {
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        }
+    }
+
+    val pressOffsetY by animateDpAsState(
+        targetValue = if (isPressed) (lipHeight - 1.dp) else 0.dp,
+        animationSpec = if (motion.enabled) {
+            spring(dampingRatio = 0.62f, stiffness = 680f)
+        } else {
+            snap()
+        },
+        label = "quest_pedestal_press",
+    )
+
+    val pulseScale: Float
+    val crownBobY: Float
+    if (isActiveQuest && motion.enabled) {
+        val infiniteTransition = rememberInfiniteTransition(label = "active_quest_ring")
+        val animatedScale by infiniteTransition.animateFloat(
+            initialValue = 1.0f,
+            targetValue = 1.11f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1200, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "quest_ring_pulse_scale",
+        )
+        val animatedBob by infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = -5f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1200, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "quest_crown_bob",
+        )
+        pulseScale = animatedScale
+        crownBobY = animatedBob
+    } else {
+        pulseScale = 1.04f
+        crownBobY = 0f
+    }
+
+    Box(
+        modifier = modifier
+            .size(width = pedestalSize + 18.dp, height = pedestalSize + lipHeight + 22.dp)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        // Crisp pulsing tactile ring around active quest (solid dashed/crisp stroke, no blur)
+        if (isActiveQuest) {
+            Box(
+                modifier = Modifier
+                    .size(pedestalSize + 12.dp)
+                    .offset(y = 6.dp)
+                    .graphicsLayer {
+                        scaleX = pulseScale
+                        scaleY = pulseScale
+                    }
+                    .border(
+                        BorderStroke(2.5.dp, faceColor.copy(alpha = 0.55f)),
+                        shape,
+                    ),
+            )
+        }
+
+        // Physical 3D Pedestal Stack
+        Box(
+            modifier = Modifier
+                .padding(top = 12.dp)
+                .size(width = pedestalSize, height = pedestalSize + lipHeight),
+            contentAlignment = Alignment.TopCenter,
+        ) {
+            // Solid 6.dp 3D base lip
+            Box(
+                modifier = Modifier
+                    .size(pedestalSize)
+                    .offset(y = lipHeight)
+                    .clip(shape)
+                    .background(lipColor),
+            )
+            // Elevated top face with crisp top rim highlight & spring press
+            Box(
+                modifier = Modifier
+                    .size(pedestalSize)
+                    .offset(y = pressOffsetY)
+                    .clip(shape)
+                    .background(faceColor)
+                    .border(
+                        BorderStroke(1.5.dp, Color.White.copy(alpha = if (tactile.isDarkSurface) 0.16f else 0.28f)),
+                        shape,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = contentDescription,
+                    tint = iconTint,
+                    modifier = Modifier.size(34.dp),
+                )
+            }
+        }
+
+        // Floating Golden Star Crown badge perched above active quest
+        if (isActiveQuest) {
+            Surface(
+                shape = CircleShape,
+                color = tactile.amberFace,
+                border = BorderStroke(1.5.dp, tactile.amberLip),
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .graphicsLayer { translationY = crownBobY }
+                    .size(26.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Filled.Star,
+                        contentDescription = null,
+                        tint = tactile.onAmberFace,
+                        modifier = Modifier.size(15.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 3D Golden Trophy Pedestal sitting at the climax of each dropped-down chapter quest path.
+ */
+@Composable
+fun Kova3DGoldenTrophyPedestal(
+    isUnlocked: Boolean,
+    isCompleted: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val tactile = LocalKovaTactileColors.current
+    val face = when {
+        isCompleted -> tactile.emeraldFace
+        isUnlocked -> tactile.amberFace
+        else -> tactile.stoneFace
+    }
+    val lip = when {
+        isCompleted -> tactile.emeraldLip
+        isUnlocked -> tactile.amberLip
+        else -> tactile.stoneLip
+    }
+    val tint = when {
+        isCompleted -> tactile.onEmeraldFace
+        isUnlocked -> tactile.onAmberFace
+        else -> tactile.stoneLabel
+    }
+
+    Kova3DQuestPedestal(
+        icon = Icons.Filled.EmojiEvents,
+        contentDescription = "Chapter Assignment Trophy Pedestal",
+        faceColor = face,
+        lipColor = lip,
+        iconTint = tint,
+        isActiveQuest = isUnlocked && !isCompleted,
+        onClick = onClick,
+        pedestalSize = 84.dp,
+        lipHeight = 6.dp,
+        shape = KovaExpressiveShapes.ScallopedSeal,
+        modifier = modifier,
+    )
 }
 
 /**
@@ -241,7 +449,7 @@ fun Kova3DChapterRing(
     val animatedProgress by animateFloatAsState(
         targetValue = progress.coerceIn(0f, 1f),
         animationSpec = if (motion.enabled) {
-            spring(dampingRatio = 0.72f, stiffness = 210f)
+            spring(dampingRatio = 0.75f, stiffness = 340f)
         } else {
             snap()
         },
@@ -338,49 +546,6 @@ fun Kova3DChapterRing(
                     modifier = Modifier.size(innerDiameter * 0.48f),
                 )
             }
-        }
-    }
-}
-
-/**
- * Tactile 3D squircle/circular keycap badge used for Lesson Nodes inside chapter drop-downs.
- */
-@Composable
-fun KovaTactileNodeCap(
-    icon: ImageVector,
-    contentDescription: String?,
-    faceColor: Color,
-    lipColor: Color,
-    iconTint: Color,
-    modifier: Modifier = Modifier,
-    size: Dp = 56.dp,
-    lipHeight: Dp = 5.dp,
-    shape: Shape = KovaExpressiveShapes.LessonSquircleNode,
-) {
-    Box(
-        modifier = modifier.size(width = size, height = size + lipHeight),
-        contentAlignment = Alignment.TopCenter,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(size)
-                .offset(y = lipHeight)
-                .clip(shape)
-                .background(lipColor),
-        )
-        Box(
-            modifier = Modifier
-                .size(size)
-                .clip(shape)
-                .background(faceColor),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = contentDescription,
-                tint = iconTint,
-                modifier = Modifier.size(26.dp),
-            )
         }
     }
 }

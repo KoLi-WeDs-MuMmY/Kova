@@ -1,11 +1,15 @@
 package com.example
 
 import com.example.model.HighlightCategory
+import com.example.model.KovaTab
 import com.example.model.LessonStatus
+import com.example.model.NoteSource
+import com.example.model.RevisionBinderTab
 import com.example.ui.theme.ThemeMode
 import com.example.viewmodel.KovaViewModel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -19,6 +23,7 @@ class KovaViewModelTest {
         assertEquals(ThemeMode.WARM_DAYLIGHT, state.themeMode)
         assertTrue("ch_1" in state.expandedChapterIds)
         assertFalse("ch_2" in state.expandedChapterIds)
+        assertTrue(state.chatThreads.size >= 2)
     }
 
     @Test
@@ -88,8 +93,8 @@ class KovaViewModelTest {
     @Test
     fun themeModeMotionAndHighlightFiltersUpdateState() {
         val vm = KovaViewModel()
-        vm.setThemeMode(ThemeMode.MATTE_DARK)
-        assertEquals(ThemeMode.MATTE_DARK, vm.uiState.value.themeMode)
+        vm.setThemeMode(ThemeMode.WARM_DARK)
+        assertEquals(ThemeMode.WARM_DARK, vm.uiState.value.themeMode)
 
         vm.setThemeMode(ThemeMode.AMOLED_BLACK)
         vm.setDynamicColorEnabled(true)
@@ -102,5 +107,61 @@ class KovaViewModelTest {
         assertFalse(state.expressiveMotionEnabled)
         assertTrue(state.filteredHighlights.isNotEmpty())
         assertTrue(state.filteredHighlights.all { it.category == HighlightCategory.CODE_RULE })
+    }
+
+    @Test
+    fun aiQuickPromptFillsComposerAndSendingAppendsScopedReply() {
+        val vm = KovaViewModel()
+        val initialPool = vm.uiState.value.quota.activeAiPoolRemaining
+
+        vm.insertQuickPrompt("Explain like I'm 10")
+        assertTrue(vm.uiState.value.chatComposerText.contains("Explain like I'm 10"))
+
+        val beforeCount = vm.uiState.value.activeThreadMessages.size
+        vm.sendChatMessage()
+
+        val state = vm.uiState.value
+        assertEquals("", state.chatComposerText)
+        assertEquals(initialPool - 1, state.quota.activeAiPoolRemaining)
+        assertEquals(beforeCount + 2, state.activeThreadMessages.size)
+        assertFalse(state.activeThreadMessages.last().isFromUser)
+    }
+
+    @Test
+    fun savingAiAnswerAddsTaggedNoteToRevisionBinder() {
+        val vm = KovaViewModel()
+        val aiMessage = vm.uiState.value.activeThreadMessages.first { !it.isFromUser }
+        val beforeNotesCount = vm.uiState.value.highlights.size
+
+        vm.saveAiMessageToNotes(aiMessage.id, HighlightCategory.GOTCHA)
+
+        val state = vm.uiState.value
+        assertEquals(beforeNotesCount + 1, state.highlights.size)
+        val savedNote = state.highlights.first()
+        assertEquals(HighlightCategory.GOTCHA, savedNote.category)
+        assertEquals(NoteSource.AI_TUTOR, savedNote.source)
+        assertNotNull(state.activeThreadMessages.first { it.id == aiMessage.id }.savedNoteId)
+    }
+
+    @Test
+    fun flashcardSprintRatesCardsAndUpdatesSpacedRepetitionSchedule() {
+        val vm = KovaViewModel()
+        val firstCard = vm.uiState.value.flashcardDeck.first()
+        val initialRetention = firstCard.retentionPercent
+
+        vm.startQuickReviewFromQueue()
+        assertEquals(KovaTab.REVISION, vm.uiState.value.selectedTab)
+        assertEquals(RevisionBinderTab.FLASHCARDS, vm.uiState.value.selectedBinderTab)
+
+        vm.flipFlashcard()
+        assertTrue(vm.uiState.value.flashcardSprint.isFlipped)
+
+        vm.rateFlashcardGotIt()
+        val updatedCard = vm.uiState.value.spacedRepetitionItems.first { it.id == firstCard.id }
+        assertFalse(updatedCard.isDueNow)
+        assertTrue(updatedCard.retentionPercent > initialRetention)
+        assertEquals(1, vm.uiState.value.flashcardSprint.gotItCount)
+
+        vm.togglePauseFlashcardSprint()
     }
 }

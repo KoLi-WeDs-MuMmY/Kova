@@ -3,9 +3,12 @@ package com.example.ui
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -59,6 +62,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -69,6 +73,8 @@ import com.example.R
 import com.example.model.HighlightCategory
 import com.example.model.KovaTab
 import com.example.model.KovaUiState
+import com.example.model.RevisionBinderTab
+import com.example.ui.components.AmbientMaterialCanvas
 import com.example.ui.components.DeveloperSettingsSheet
 import com.example.ui.components.FloatingCompanionHost
 import com.example.ui.components.KovaTactileCard
@@ -83,6 +89,7 @@ import com.example.ui.theme.KovaTheme
 import com.example.ui.theme.LocalKovaMotion
 import com.example.ui.theme.LocalKovaTactileColors
 import com.example.viewmodel.KovaViewModel
+import com.example.viewmodel.KovaViewModelFactory
 
 private data class NavDestinationSpec(
     val tab: KovaTab,
@@ -101,7 +108,9 @@ private val KovaNavDestinations = listOf(
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun KovaApp(
-    viewModel: KovaViewModel = viewModel(),
+    viewModel: KovaViewModel = viewModel(
+        factory = KovaViewModelFactory(LocalContext.current),
+    ),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -141,7 +150,25 @@ fun KovaApp(
                 onCloseDetail = viewModel::closeDetail,
                 onPassLessonMockTest = viewModel::passLessonMockTest,
                 onCompleteAssignment = viewModel::completeAssignment,
+                onSelectThread = viewModel::selectChatThread,
+                onCreateNewThread = viewModel::createNewLessonThread,
+                onUpdateChatSearch = viewModel::updateChatSearchQuery,
+                onTogglePinThread = viewModel::togglePinThread,
+                onDeleteThread = viewModel::deleteChatThread,
+                onUpdateChatComposer = viewModel::updateChatComposerText,
+                onInsertQuickPrompt = viewModel::insertQuickPrompt,
+                onSendChatMessage = viewModel::sendChatMessage,
+                onSaveMessageToNotes = viewModel::saveAiMessageToNotes,
+                onSelectBinderTab = viewModel::selectBinderTab,
+                onUpdateRevisionSearch = viewModel::updateRevisionSearchQuery,
                 onSelectHighlightFilter = viewModel::selectHighlightFilter,
+                onFocusNextFromRadar = viewModel::focusNextFromRadar,
+                onStartQuickReview = viewModel::startQuickReviewFromQueue,
+                onTogglePauseSprint = viewModel::togglePauseFlashcardSprint,
+                onRestartSprint = { viewModel.restartFlashcardSprint(autoStart = true) },
+                onFlipFlashcard = viewModel::flipFlashcard,
+                onRateFlashcardReviewAgain = viewModel::rateFlashcardReviewAgain,
+                onRateFlashcardGotIt = viewModel::rateFlashcardGotIt,
             )
         }
 
@@ -176,7 +203,25 @@ private fun KovaShellContent(
     onCloseDetail: () -> Unit,
     onPassLessonMockTest: (String) -> Unit,
     onCompleteAssignment: (String) -> Unit,
+    onSelectThread: (String) -> Unit,
+    onCreateNewThread: () -> Unit,
+    onUpdateChatSearch: (String) -> Unit,
+    onTogglePinThread: (String) -> Unit,
+    onDeleteThread: (String) -> Unit,
+    onUpdateChatComposer: (String) -> Unit,
+    onInsertQuickPrompt: (String) -> Unit,
+    onSendChatMessage: () -> Unit,
+    onSaveMessageToNotes: (String, HighlightCategory) -> Unit,
+    onSelectBinderTab: (RevisionBinderTab) -> Unit,
+    onUpdateRevisionSearch: (String) -> Unit,
     onSelectHighlightFilter: (HighlightCategory?) -> Unit,
+    onFocusNextFromRadar: () -> Unit,
+    onStartQuickReview: () -> Unit,
+    onTogglePauseSprint: () -> Unit,
+    onRestartSprint: () -> Unit,
+    onFlipFlashcard: () -> Unit,
+    onRateFlashcardReviewAgain: () -> Unit,
+    onRateFlashcardGotIt: () -> Unit,
 ) {
     val motion = LocalKovaMotion.current
     val tactile = LocalKovaTactileColors.current
@@ -188,6 +233,9 @@ private fun KovaShellContent(
     ) {
         val useTabletRail = maxWidth >= 600.dp && !isCompactFloating
         val useTwoPane = maxWidth >= 700.dp && !isCompactFloating
+
+        // Subtle ambient moving M3 geometric shapes behind all screens
+        AmbientMaterialCanvas(modifier = Modifier.fillMaxSize())
 
         SharedTransitionLayout(modifier = Modifier.fillMaxSize()) {
             AnimatedContent(
@@ -234,37 +282,70 @@ private fun KovaShellContent(
                                 )
 
                                 Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                                    when (uiState.selectedTab) {
-                                        KovaTab.LEARN -> LearnScreen(
-                                            uiState = uiState,
-                                            isWideTabletLayout = useTwoPane,
-                                            sharedTransitionScope = this@SharedTransitionLayout,
-                                            animatedVisibilityScope = this@AnimatedContent,
-                                            onToggleChapterExpanded = onToggleChapterExpanded,
-                                            onLessonClick = onLessonClick,
-                                            onAssignmentClick = { id -> onAssignmentClick(id, "learn") },
-                                            onRevisionSheetClick = onRevisionSheetClick,
-                                        )
-                                        KovaTab.LAB -> LabScreen(
-                                            uiState = uiState,
-                                            isWideTabletLayout = useTwoPane,
-                                            sharedTransitionScope = this@SharedTransitionLayout,
-                                            animatedVisibilityScope = this@AnimatedContent,
-                                            onAssignmentClick = { id -> onAssignmentClick(id, "lab") },
-                                        )
-                                        KovaTab.AI -> AiScreen(
-                                            uiState = uiState,
-                                            isWideTabletLayout = useTwoPane,
-                                        )
-                                        KovaTab.REVISION -> RevisionScreen(
-                                            uiState = uiState,
-                                            isWideTabletLayout = useTwoPane,
-                                            sharedTransitionScope = this@SharedTransitionLayout,
-                                            animatedVisibilityScope = this@AnimatedContent,
-                                            onSelectFilter = onSelectHighlightFilter,
-                                            onNoteClick = onNoteClick,
-                                            onOpenChapterRevisionSheet = onRevisionSheetClick,
-                                        )
+                                    AnimatedContent(
+                                        targetState = uiState.selectedTab,
+                                        transitionSpec = {
+                                            if (motion.enabled) {
+                                                (fadeIn(tween(200)) + scaleIn(
+                                                    initialScale = 0.985f,
+                                                    animationSpec = spring(dampingRatio = 0.75f, stiffness = 340f),
+                                                )).togetherWith(fadeOut(tween(150)))
+                                            } else {
+                                                fadeIn(snap()) togetherWith fadeOut(snap())
+                                            }
+                                        },
+                                        label = "kova_tab_spring_switch",
+                                    ) { tab ->
+                                        when (tab) {
+                                            KovaTab.LEARN -> LearnScreen(
+                                                uiState = uiState,
+                                                isWideTabletLayout = useTwoPane,
+                                                sharedTransitionScope = this@SharedTransitionLayout,
+                                                animatedVisibilityScope = this@AnimatedContent,
+                                                onToggleChapterExpanded = onToggleChapterExpanded,
+                                                onLessonClick = onLessonClick,
+                                                onAssignmentClick = { id -> onAssignmentClick(id, "learn") },
+                                                onRevisionSheetClick = onRevisionSheetClick,
+                                            )
+                                            KovaTab.LAB -> LabScreen(
+                                                uiState = uiState,
+                                                isWideTabletLayout = useTwoPane,
+                                                sharedTransitionScope = this@SharedTransitionLayout,
+                                                animatedVisibilityScope = this@AnimatedContent,
+                                                onAssignmentClick = { id -> onAssignmentClick(id, "lab") },
+                                            )
+                                            KovaTab.AI -> AiScreen(
+                                                uiState = uiState,
+                                                isWideTabletLayout = useTwoPane,
+                                                onSelectThread = onSelectThread,
+                                                onCreateNewThread = onCreateNewThread,
+                                                onUpdateSearchQuery = onUpdateChatSearch,
+                                                onTogglePinThread = onTogglePinThread,
+                                                onDeleteThread = onDeleteThread,
+                                                onUpdateComposerText = onUpdateChatComposer,
+                                                onInsertQuickPrompt = onInsertQuickPrompt,
+                                                onSendMessage = onSendChatMessage,
+                                                onSaveMessageToNotes = onSaveMessageToNotes,
+                                            )
+                                            KovaTab.REVISION -> RevisionScreen(
+                                                uiState = uiState,
+                                                isWideTabletLayout = useTwoPane,
+                                                sharedTransitionScope = this@SharedTransitionLayout,
+                                                animatedVisibilityScope = this@AnimatedContent,
+                                                onSelectBinderTab = onSelectBinderTab,
+                                                onUpdateSearchQuery = onUpdateRevisionSearch,
+                                                onSelectFilter = onSelectHighlightFilter,
+                                                onFocusNextFromRadar = onFocusNextFromRadar,
+                                                onStartQuickReview = onStartQuickReview,
+                                                onTogglePauseSprint = onTogglePauseSprint,
+                                                onRestartSprint = onRestartSprint,
+                                                onFlipFlashcard = onFlipFlashcard,
+                                                onRateFlashcardReviewAgain = onRateFlashcardReviewAgain,
+                                                onRateFlashcardGotIt = onRateFlashcardGotIt,
+                                                onNoteClick = onNoteClick,
+                                                onOpenChapterRevisionSheet = onRevisionSheetClick,
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -282,7 +363,6 @@ private fun KovaShellContent(
                 }
             }
 
-            // Crisp Tactile Snackbar Host
             SnackbarHost(
                 hostState = snackbarHostState,
                 modifier = Modifier
@@ -297,7 +377,7 @@ private fun KovaShellContent(
                 Snackbar(
                     snackbarData = data,
                     shape = KovaExpressiveShapes.StatAndAssignmentCard,
-                    containerColor = if (tactile.isDarkSurface) tactile.cardFace else Color(0xFF1E293B),
+                    containerColor = if (tactile.isDarkSurface) tactile.cardElevatedFace else Color(0xFF1E293B),
                     contentColor = Color.White,
                 )
             }
@@ -326,7 +406,6 @@ private fun KovaTopBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        // Tactile 3D Brand Emblem & Title
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -353,7 +432,7 @@ private fun KovaTopBar(
                     Text(
                         text = "K",
                         style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                        color = Color.White,
+                        color = tactile.onEmeraldFace,
                     )
                 }
             }
@@ -393,7 +472,6 @@ private fun KovaTopBar(
             }
         }
 
-        // Right controls: Tactile Floating Toggle Pill + Settings Gear
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -403,7 +481,7 @@ private fun KovaTopBar(
                 shape = KovaExpressiveShapes.Pill,
                 color = if (isFloatingPreview) tactile.cobaltFace else tactile.cardFace,
                 border = BorderStroke(
-                    1.5.dp,
+                    tactile.cardBorderWidthDp.dp,
                     if (isFloatingPreview) tactile.cobaltLip else tactile.cardOutline,
                 ),
                 modifier = Modifier
@@ -422,7 +500,7 @@ private fun KovaTopBar(
                             Icons.Outlined.PictureInPictureAlt
                         },
                         contentDescription = stringResource(R.string.cd_toggle_floating_mode),
-                        tint = if (isFloatingPreview) Color.White else tactile.cobaltFace,
+                        tint = if (isFloatingPreview) tactile.onCobaltFace else tactile.cobaltFace,
                         modifier = Modifier.size(16.dp),
                     )
                     Text(
@@ -432,7 +510,7 @@ private fun KovaTopBar(
                             stringResource(R.string.mode_floating)
                         },
                         style = MaterialTheme.typography.labelLarge,
-                        color = if (isFloatingPreview) Color.White else MaterialTheme.colorScheme.onSurface,
+                        color = if (isFloatingPreview) tactile.onCobaltFace else MaterialTheme.colorScheme.onSurface,
                     )
                 }
             }
@@ -440,7 +518,7 @@ private fun KovaTopBar(
             Surface(
                 shape = CircleShape,
                 color = tactile.cardFace,
-                border = BorderStroke(1.5.dp, tactile.cardOutline),
+                border = BorderStroke(tactile.cardBorderWidthDp.dp, tactile.cardOutline),
             ) {
                 IconButton(
                     onClick = onOpenSettings,
@@ -505,7 +583,7 @@ private fun KovaTactileBottomNavBar(
                         shape = KovaExpressiveShapes.Pill,
                         color = if (selected) tactile.cobaltSoft else Color.Transparent,
                         border = if (selected) {
-                            BorderStroke(1.dp, tactile.cobaltFace.copy(alpha = 0.4f))
+                            BorderStroke(1.dp, tactile.cobaltFace.copy(alpha = 0.45f))
                         } else {
                             null
                         },

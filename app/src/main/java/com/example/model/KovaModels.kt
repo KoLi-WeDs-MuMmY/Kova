@@ -19,7 +19,18 @@ enum class LessonStatus {
 enum class HighlightCategory {
     KEY_IDEA,
     CODE_RULE,
-    ASK_AI,
+    GOTCHA,
+}
+
+enum class NoteSource {
+    LESSON_HIGHLIGHT,
+    AI_TUTOR,
+}
+
+enum class RevisionBinderTab {
+    HIGHLIGHTS,
+    FLASHCARDS,
+    SR_QUEUE,
 }
 
 @Immutable
@@ -76,7 +87,9 @@ data class HighlightNote(
     val category: HighlightCategory,
     val highlightedSnippet: String,
     val learnerNote: String,
+    val source: NoteSource = NoteSource.LESSON_HIGHLIGHT,
     val savedAtLabel: String,
+    val createdAtMillis: Long = 0L,
 )
 
 @Immutable
@@ -84,9 +97,37 @@ data class SpacedRepetitionItem(
     val id: String,
     val lessonCode: String,
     val title: String,
+    val frontPrompt: String,
+    val backAnswer: String,
+    val codeExample: String,
+    val isDueNow: Boolean,
     val countdownLabel: String,
     val retentionPercent: Int,
     val intervalTag: String,
+    val reviewCount: Int = 0,
+)
+
+@Immutable
+data class ChatThread(
+    val id: String,
+    val title: String,
+    val lessonCode: String,
+    val lessonTitle: String,
+    val isPinned: Boolean,
+    val updatedAtLabel: String,
+    val updatedAtMillis: Long,
+    val previewSnippet: String,
+)
+
+@Immutable
+data class ChatMessage(
+    val id: String,
+    val threadId: String,
+    val isFromUser: Boolean,
+    val content: String,
+    val savedNoteId: String? = null,
+    val timestampLabel: String,
+    val createdAtMillis: Long,
 )
 
 @Immutable
@@ -97,6 +138,36 @@ data class QuotaState(
     val activeAiPoolRemaining: Int = 12,
     val activeAiPoolMax: Int = 14,
     val spacedRepetitionReserve: Int = 4,
+)
+
+@Immutable
+data class MasteryConceptMetric(
+    val label: String,
+    val lessonCode: String,
+    val scorePercent: Int,
+)
+
+@Immutable
+data class MasteryRadarSummary(
+    val strongest: List<MasteryConceptMetric>,
+    val weakSpots: List<MasteryConceptMetric>,
+    val focusLessonId: String?,
+    val focusTitle: String,
+    val focusReason: String,
+    val preferFlashcardFocus: Boolean,
+)
+
+@Immutable
+data class FlashcardSprintState(
+    val secondsRemaining: Int = 60,
+    val totalSeconds: Int = 60,
+    val isRunning: Boolean = false,
+    val isPaused: Boolean = false,
+    val currentIndex: Int = 0,
+    val isFlipped: Boolean = false,
+    val gotItCount: Int = 0,
+    val reviewAgainCount: Int = 0,
+    val isSummaryVisible: Boolean = false,
 )
 
 @Immutable
@@ -145,8 +216,16 @@ data class KovaUiState(
     val expandedChapterIds: Set<String> = setOf("ch_1"),
     val highlights: List<HighlightNote> = emptyList(),
     val spacedRepetitionItems: List<SpacedRepetitionItem> = emptyList(),
-    val quota: QuotaState = QuotaState(dailyLessonsRemaining = 3),
+    val chatThreads: List<ChatThread> = emptyList(),
+    val activeThreadId: String? = null,
+    val activeThreadMessages: List<ChatMessage> = emptyList(),
+    val chatSearchQuery: String = "",
+    val chatComposerText: String = "",
+    val selectedBinderTab: RevisionBinderTab = RevisionBinderTab.HIGHLIGHTS,
+    val revisionSearchQuery: String = "",
     val selectedHighlightFilter: HighlightCategory? = null,
+    val flashcardSprint: FlashcardSprintState = FlashcardSprintState(),
+    val quota: QuotaState = QuotaState(dailyLessonsRemaining = 3),
     val activeDetail: DetailDestination? = null,
     val themeMode: ThemeMode = ThemeMode.WARM_DAYLIGHT,
     val dynamicColorEnabled: Boolean = false,
@@ -165,11 +244,113 @@ data class KovaUiState(
                 ?: allLessons.firstOrNull()
         }
 
+    val activeThread: ChatThread?
+        get() = chatThreads.firstOrNull { it.id == activeThreadId } ?: chatThreads.firstOrNull()
+
+    val filteredChatThreads: List<ChatThread>
+        get() {
+            val q = chatSearchQuery.trim().lowercase()
+            val list = if (q.isEmpty()) {
+                chatThreads
+            } else {
+                chatThreads.filter {
+                    it.title.lowercase().contains(q) ||
+                        it.lessonCode.lowercase().contains(q) ||
+                        it.lessonTitle.lowercase().contains(q) ||
+                        it.previewSnippet.lowercase().contains(q)
+                }
+            }
+            return list.sortedWith(
+                compareByDescending<ChatThread> { it.isPinned }
+                    .thenByDescending { it.updatedAtMillis },
+            )
+        }
+
     val filteredHighlights: List<HighlightNote>
-        get() = if (selectedHighlightFilter == null) {
-            highlights
-        } else {
-            highlights.filter { it.category == selectedHighlightFilter }
+        get() {
+            val q = revisionSearchQuery.trim().lowercase()
+            return highlights.filter { note ->
+                val matchesCategory = selectedHighlightFilter == null || note.category == selectedHighlightFilter
+                val matchesQuery = q.isEmpty() ||
+                    note.highlightedSnippet.lowercase().contains(q) ||
+                    note.learnerNote.lowercase().contains(q) ||
+                    note.lessonCode.lowercase().contains(q) ||
+                    note.lessonTitle.lowercase().contains(q)
+                matchesCategory && matchesQuery
+            }
+        }
+
+    val dueNowSrItems: List<SpacedRepetitionItem>
+        get() = spacedRepetitionItems.filter { it.isDueNow }
+
+    val upcomingSrItems: List<SpacedRepetitionItem>
+        get() = spacedRepetitionItems.filterNot { it.isDueNow }
+
+    val flashcardDeck: List<SpacedRepetitionItem>
+        get() = spacedRepetitionItems.sortedWith(
+            compareByDescending<SpacedRepetitionItem> { it.isDueNow }
+                .thenBy { it.retentionPercent },
+        )
+
+    val masteryRadar: MasteryRadarSummary
+        get() {
+            val srSortedDesc = spacedRepetitionItems.sortedByDescending { it.retentionPercent }
+            val strongestFromSr = srSortedDesc.take(2).map {
+                MasteryConceptMetric(
+                    label = it.title,
+                    lessonCode = it.lessonCode,
+                    scorePercent = it.retentionPercent,
+                )
+            }
+            val strongestFromCompleted = chapters.flatMap { it.lessons }
+                .filter { it.status == LessonStatus.COMPLETED }
+                .map {
+                    MasteryConceptMetric(
+                        label = it.title,
+                        lessonCode = it.code,
+                        scorePercent = it.passScorePercent ?: 85,
+                    )
+                }
+
+            val strongest = (strongestFromCompleted + strongestFromSr)
+                .distinctBy { it.label }
+                .sortedByDescending { it.scorePercent }
+                .take(2)
+
+            val weakFromSr = spacedRepetitionItems
+                .sortedBy { it.retentionPercent }
+                .take(2)
+                .map {
+                    MasteryConceptMetric(
+                        label = it.title,
+                        lessonCode = it.lessonCode,
+                        scorePercent = it.retentionPercent,
+                    )
+                }
+
+            val gotchaCount = highlights.count { it.category == HighlightCategory.GOTCHA }
+            val weakestCard = spacedRepetitionItems.minByOrNull { it.retentionPercent }
+            val nextLesson = activeLesson
+            val preferFlashcards = dueNowSrItems.isNotEmpty() || gotchaCount >= 2
+
+            return MasteryRadarSummary(
+                strongest = strongest,
+                weakSpots = weakFromSr,
+                focusLessonId = nextLesson?.id,
+                focusTitle = if (preferFlashcards && weakestCard != null) {
+                    "60s Sprint: ${weakestCard.title}"
+                } else if (nextLesson != null) {
+                    "Lesson ${nextLesson.code}: ${nextLesson.title}"
+                } else {
+                    "60s Flashcard Recall"
+                },
+                focusReason = if (preferFlashcards) {
+                    "${dueNowSrItems.size} due card(s) & $gotchaCount saved Gotcha note(s)"
+                } else {
+                    "Continue active quest path to raise Chapter 1 mastery"
+                },
+                preferFlashcardFocus = preferFlashcards,
+            )
         }
 
     fun findLesson(lessonId: String): Lesson? =

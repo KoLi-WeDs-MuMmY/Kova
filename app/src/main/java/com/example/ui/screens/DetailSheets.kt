@@ -25,7 +25,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.AutoStories
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
@@ -41,7 +43,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -54,6 +55,7 @@ import com.example.model.HighlightNote
 import com.example.model.KovaUiState
 import com.example.model.Lesson
 import com.example.model.LessonStatus
+import com.example.model.NoteSource
 import com.example.ui.components.KovaPillBadge
 import com.example.ui.components.KovaScallopedSealBadge
 import com.example.ui.components.KovaTactileButton
@@ -145,7 +147,7 @@ private fun DetailTopHeader(
         Surface(
             shape = CircleShape,
             color = tactile.cardFace,
-            border = BorderStroke(1.5.dp, tactile.cardOutline),
+            border = BorderStroke(tactile.cardBorderWidthDp.dp, tactile.cardOutline),
         ) {
             IconButton(
                 onClick = onClose,
@@ -175,7 +177,7 @@ private fun DetailTopHeader(
         Surface(
             shape = CircleShape,
             color = tactile.cardFace,
-            border = BorderStroke(1.5.dp, tactile.cardOutline),
+            border = BorderStroke(tactile.cardBorderWidthDp.dp, tactile.cardOutline),
         ) {
             IconButton(
                 onClick = onClose,
@@ -240,7 +242,6 @@ private fun LessonDetailContent(
                 )
             }
 
-            // Analogy & Literal Word Meaning Preview
             KovaTactileCard(
                 shape = KovaExpressiveShapes.HeroChapterCard,
                 faceColor = tactile.cardFace,
@@ -259,11 +260,11 @@ private fun LessonDetailContent(
                         Icon(
                             imageVector = Icons.Outlined.Lightbulb,
                             contentDescription = null,
-                            tint = tactile.amberLip,
+                            tint = tactile.amberFace,
                             modifier = Modifier.size(20.dp),
                         )
                         Text(
-                            text = "10-Year-Old Analogy & Highlightable Reader (Phase 2)",
+                            text = "10-Year-Old Analogy & Word Breakdown",
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.onSurface,
                         )
@@ -281,7 +282,6 @@ private fun LessonDetailContent(
                 }
             }
 
-            // Debugger Line Animation + Variable Watch Panel Placeholder
             KovaTactileCard(
                 shape = KovaExpressiveShapes.StatAndAssignmentCard,
                 faceColor = tactile.cardFace,
@@ -325,7 +325,7 @@ private fun LessonDetailContent(
                     Surface(
                         shape = RoundedCornerShape(14.dp),
                         color = MaterialTheme.colorScheme.surfaceContainerLow,
-                        border = BorderStroke(1.5.dp, tactile.cardOutline),
+                        border = BorderStroke(1.dp, tactile.cardOutline),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(
@@ -336,14 +336,13 @@ private fun LessonDetailContent(
                         )
                     }
                     Text(
-                        text = "Phase 2 upgrades this panel with step-by-step line stepping, live variable watch chips, Desired Output, and collapsible Show Solution.",
+                        text = "Interactive step-by-step line stepping, live variable watch chips, Desired Output, and collapsible Show Solution arrive in Phase 3.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
 
-            // Integrated Lesson Test Section (Tactile 3D CTA)
             KovaTactileCard(
                 shape = KovaExpressiveShapes.HeroChapterCard,
                 faceColor = tactile.cardFace,
@@ -365,7 +364,7 @@ private fun LessonDetailContent(
                             contentDescription = null,
                             containerColor = if (isCompleted) tactile.emeraldFace else tactile.amberFace,
                             lipColor = if (isCompleted) tactile.emeraldLip else tactile.amberLip,
-                            contentColor = Color.White,
+                            contentColor = if (isCompleted) tactile.onEmeraldFace else tactile.onAmberFace,
                             size = 44.dp,
                             iconSize = 22.dp,
                         )
@@ -387,7 +386,7 @@ private fun LessonDetailContent(
                         Surface(
                             shape = KovaExpressiveShapes.Pill,
                             color = tactile.emeraldSoft,
-                            border = BorderStroke(1.5.dp, tactile.emeraldFace),
+                            border = BorderStroke(1.25.dp, tactile.emeraldFace),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag("lesson_passed_banner"),
@@ -416,7 +415,7 @@ private fun LessonDetailContent(
                             onClick = onPassMockTest,
                             faceColor = tactile.emeraldFace,
                             lipColor = tactile.emeraldLip,
-                            contentColor = Color.White,
+                            contentColor = tactile.onEmeraldFace,
                             minHeight = 52.dp,
                             lipHeight = 5.dp,
                             modifier = Modifier
@@ -426,7 +425,7 @@ private fun LessonDetailContent(
                             Text(
                                 text = stringResource(R.string.lesson_test_pass_cta),
                                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                color = Color.White,
+                                color = tactile.onEmeraldFace,
                             )
                         }
                     }
@@ -483,7 +482,7 @@ private fun AssignmentDetailContent(
                             contentDescription = null,
                             containerColor = if (assignment.isCompleted) tactile.emeraldFace else tactile.amberFace,
                             lipColor = if (assignment.isCompleted) tactile.emeraldLip else tactile.amberLip,
-                            contentColor = Color.White,
+                            contentColor = if (assignment.isCompleted) tactile.onEmeraldFace else tactile.onAmberFace,
                             size = 50.dp,
                             iconSize = 24.dp,
                         )
@@ -491,7 +490,7 @@ private fun AssignmentDetailContent(
                             Text(
                                 text = "Learn <-> Lab Synchronized Gate",
                                 style = KovaCodeTextStyle.copy(fontWeight = FontWeight.Bold),
-                                color = tactile.amberLip,
+                                color = tactile.amberFace,
                             )
                             Text(
                                 text = assignment.subtitle,
@@ -515,7 +514,7 @@ private fun AssignmentDetailContent(
                             Icon(
                                 imageVector = Icons.Outlined.CheckCircle,
                                 contentDescription = null,
-                                tint = if (assignment.isCompleted) tactile.emeraldFace else tactile.amberLip,
+                                tint = if (assignment.isCompleted) tactile.emeraldFace else tactile.amberFace,
                                 modifier = Modifier
                                     .padding(top = 2.dp)
                                     .size(18.dp),
@@ -534,7 +533,7 @@ private fun AssignmentDetailContent(
                 Surface(
                     shape = KovaExpressiveShapes.Pill,
                     color = tactile.emeraldSoft,
-                    border = BorderStroke(1.5.dp, tactile.emeraldFace),
+                    border = BorderStroke(1.25.dp, tactile.emeraldFace),
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("assignment_completed_banner"),
@@ -563,7 +562,7 @@ private fun AssignmentDetailContent(
                     onClick = onCompleteAssignment,
                     faceColor = tactile.amberFace,
                     lipColor = tactile.amberLip,
-                    contentColor = Color.White,
+                    contentColor = tactile.onAmberFace,
                     minHeight = 52.dp,
                     lipHeight = 5.dp,
                     modifier = Modifier
@@ -573,7 +572,7 @@ private fun AssignmentDetailContent(
                     Text(
                         text = stringResource(R.string.assignment_mark_complete),
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                        color = Color.White,
+                        color = tactile.onAmberFace,
                     )
                 }
             }
@@ -619,12 +618,28 @@ private fun NoteDetailContent(
                     modifier = Modifier.padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    KovaPillBadge(
-                        text = "SAVED ${note.savedAtLabel}",
-                        containerColor = accent.copy(alpha = 0.14f),
-                        contentColor = accent,
-                        borderColor = accent.copy(alpha = 0.45f),
-                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        KovaPillBadge(
+                            text = "SAVED ${note.savedAtLabel}",
+                            containerColor = accent.copy(alpha = 0.14f),
+                            contentColor = accent,
+                            borderColor = accent.copy(alpha = 0.45f),
+                        )
+                        KovaPillBadge(
+                            text = if (note.source == NoteSource.AI_TUTOR) "AI TUTOR" else "LESSON",
+                            leadingIcon = if (note.source == NoteSource.AI_TUTOR) {
+                                Icons.Outlined.AutoAwesome
+                            } else {
+                                Icons.Outlined.BookmarkBorder
+                            },
+                            containerColor = tactile.cardElevatedFace,
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            borderColor = tactile.cardOutline,
+                        )
+                    }
                     Text(
                         text = "\"${note.highlightedSnippet}\"",
                         style = MaterialTheme.typography.headlineSmall,
@@ -645,7 +660,7 @@ private fun NoteDetailContent(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Text(
-                        text = "YOUR PERSONAL NOTE",
+                        text = if (note.source == NoteSource.AI_TUTOR) "SAVED AI EXPLANATION" else "YOUR PERSONAL NOTE",
                         style = KovaCodeTextStyle.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -703,7 +718,7 @@ private fun RevisionSheetContent(
                         contentDescription = null,
                         containerColor = tactile.emeraldFace,
                         lipColor = tactile.emeraldLip,
-                        contentColor = Color.White,
+                        contentColor = tactile.onEmeraldFace,
                     )
                     Column(modifier = Modifier.weight(1f)) {
                         Text(

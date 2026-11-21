@@ -88,20 +88,20 @@ fun DeveloperSettingsSheet(
                         color = MaterialTheme.colorScheme.onBackground,
                     )
                     Text(
-                        text = "Phase 1.1 Tactile Theme, Motion & Testing Controls",
+                        text = "Phase 2 Tactile Theme, Motion & Testing Controls",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 KovaPillBadge(
-                    text = "PHASE 1.1",
+                    text = "PHASE 2",
                     containerColor = tactile.cobaltSoft,
                     contentColor = tactile.onCobaltSoft,
                     borderColor = tactile.cobaltFace.copy(alpha = 0.35f),
                 )
             }
 
-            // Surface Theme Selector (Warm Daylight, Warm Matte Dark, AMOLED True Black)
+            // 3-Way Surface Theme Selector (Daylight / Warm Dark / AMOLED)
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
                     text = stringResource(R.string.settings_theme_mode),
@@ -123,14 +123,14 @@ fun DeveloperSettingsSheet(
                             .testTag("theme_mode_daylight"),
                     )
                     ThemeModeChip(
-                        label = stringResource(R.string.settings_theme_matte_dark),
-                        hexTag = "#171614",
+                        label = stringResource(R.string.settings_theme_warm_dark),
+                        hexTag = "#141311",
                         icon = Icons.Outlined.DarkMode,
-                        selected = uiState.themeMode == ThemeMode.MATTE_DARK,
-                        onClick = { onThemeModeSelected(ThemeMode.MATTE_DARK) },
+                        selected = uiState.themeMode == ThemeMode.WARM_DARK,
+                        onClick = { onThemeModeSelected(ThemeMode.WARM_DARK) },
                         modifier = Modifier
                             .weight(1f)
-                            .testTag("theme_mode_matte_dark"),
+                            .testTag("theme_mode_warm_dark"),
                     )
                     ThemeModeChip(
                         label = stringResource(R.string.settings_theme_amoled),

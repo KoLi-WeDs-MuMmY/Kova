@@ -15,7 +15,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,7 +27,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -45,7 +44,6 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.LockClock
-import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -54,7 +52,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
@@ -64,6 +61,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.R
@@ -74,10 +72,12 @@ import com.example.model.KovaUiState
 import com.example.model.Lesson
 import com.example.model.LessonStatus
 import com.example.ui.components.Kova3DChapterRing
+import com.example.ui.components.Kova3DGoldenTrophyPedestal
+import com.example.ui.components.Kova3DQuestPedestal
 import com.example.ui.components.KovaPillBadge
 import com.example.ui.components.KovaScallopedSealBadge
+import com.example.ui.components.KovaTactileButton
 import com.example.ui.components.KovaTactileCard
-import com.example.ui.components.KovaTactileNodeCap
 import com.example.ui.components.shakeOnTrigger
 import com.example.ui.theme.KovaCodeTextStyle
 import com.example.ui.theme.KovaExpressiveShapes
@@ -161,7 +161,6 @@ private fun LearnChaptersColumn(
         contentPadding = PaddingValues(top = 6.dp, bottom = 112.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        // Daily Quota & Quick Mastery Strip
         item(key = "daily_quota_strip") {
             DailyQuotaHeaderStrip(
                 dailyRemaining = uiState.quota.dailyLessonsRemaining,
@@ -171,7 +170,6 @@ private fun LearnChaptersColumn(
             )
         }
 
-        // Tactile 3D Chapter Cards with 3D Circular Progress Rings & Drop-Down Trails
         items(
             count = uiState.chapters.size,
             key = { uiState.chapters[it].id },
@@ -197,8 +195,8 @@ private fun LearnChaptersColumn(
                     enter = if (motion.enabled) {
                         expandVertically(
                             animationSpec = spring(
-                                dampingRatio = 0.72f,
-                                stiffness = 320f,
+                                dampingRatio = 0.75f,
+                                stiffness = 340f,
                             ),
                         ) + fadeIn(tween(200))
                     } else {
@@ -215,7 +213,7 @@ private fun LearnChaptersColumn(
                         shrinkVertically(snap()) + fadeOut(snap())
                     },
                 ) {
-                    ChapterDropDownTrail(
+                    ChapterWindingQuestTrail(
                         chapter = chapter,
                         isChapterUnlocked = isChapterUnlocked,
                         uiState = uiState,
@@ -293,22 +291,15 @@ private fun Tactile3DChapterCard(
     val chevronRotation by animateFloatAsState(
         targetValue = if (isExpanded) 180f else 0f,
         animationSpec = if (motion.enabled) {
-            spring(dampingRatio = 0.72f, stiffness = 340f)
+            spring(dampingRatio = 0.75f, stiffness = 340f)
         } else {
             snap()
         },
         label = "chapter_chevron_rotation",
     )
 
-    val ringArcColor = when {
-        !isUnlocked -> tactile.stoneLabel
-        chapter.progressFraction >= 1f -> tactile.emeraldFace
-        else -> tactile.emeraldFace
-    }
-    val ringArcLip = when {
-        !isUnlocked -> tactile.stoneLip
-        else -> tactile.emeraldLip
-    }
+    val ringArcColor = if (!isUnlocked) tactile.stoneLabel else tactile.emeraldFace
+    val ringArcLip = if (!isUnlocked) tactile.stoneLip else tactile.emeraldLip
     val emblemFace = when {
         !isUnlocked -> tactile.stoneFace
         isChapterMastered -> tactile.emeraldFace
@@ -319,7 +310,11 @@ private fun Tactile3DChapterCard(
         isChapterMastered -> tactile.emeraldLip
         else -> tactile.cobaltLip
     }
-    val emblemTint = if (isUnlocked) Color.White else tactile.stoneLabel
+    val emblemTint = when {
+        !isUnlocked -> tactile.stoneLabel
+        isChapterMastered -> tactile.onEmeraldFace
+        else -> tactile.onCobaltFace
+    }
     val emblemIcon = when {
         !isUnlocked -> Icons.Filled.Lock
         chapter.number == 1 -> Icons.Filled.Code
@@ -328,7 +323,7 @@ private fun Tactile3DChapterCard(
 
     val cardBorder = when {
         !isUnlocked -> tactile.cardOutline
-        isExpanded -> tactile.cobaltFace.copy(alpha = 0.55f)
+        isExpanded -> tactile.cobaltFace.copy(alpha = 0.65f)
         else -> tactile.cardOutline
     }
     val cardLip = when {
@@ -343,7 +338,7 @@ private fun Tactile3DChapterCard(
         lipColor = cardLip,
         borderColor = cardBorder,
         lipHeight = 6.dp,
-        borderWidth = if (isExpanded && isUnlocked) 2.dp else 1.5.dp,
+        borderWidth = if (isExpanded && isUnlocked) 1.75.dp else tactile.cardBorderWidthDp.dp,
         onClick = onToggleExpand,
         modifier = Modifier
             .fillMaxWidth()
@@ -360,7 +355,6 @@ private fun Tactile3DChapterCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                // Thick 3D Circular Progress Ring framing Chapter Emblem
                 Kova3DChapterRing(
                     progress = chapter.progressFraction,
                     emblemIcon = emblemIcon,
@@ -410,11 +404,7 @@ private fun Tactile3DChapterCard(
                     Text(
                         text = "Chapter ${chapter.number}: ${chapter.title}",
                         style = MaterialTheme.typography.titleLarge,
-                        color = if (isUnlocked) {
-                            MaterialTheme.colorScheme.onSurface
-                        } else {
-                            tactile.stoneLabel
-                        },
+                        color = if (isUnlocked) MaterialTheme.colorScheme.onSurface else tactile.stoneLabel,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -427,7 +417,6 @@ private fun Tactile3DChapterCard(
                     )
                 }
 
-                // Tactile Drop-Down Chevron Pill
                 Surface(
                     shape = CircleShape,
                     color = if (isExpanded && isUnlocked) tactile.cobaltSoft else MaterialTheme.colorScheme.surfaceContainerLow,
@@ -447,7 +436,6 @@ private fun Tactile3DChapterCard(
                 }
             }
 
-            // Bottom Action Row inside Chapter Card
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -455,9 +443,9 @@ private fun Tactile3DChapterCard(
             ) {
                 Text(
                     text = if (isExpanded) {
-                        "Tap card to fold trail"
+                        "Tap card to fold quest trail"
                     } else if (isUnlocked) {
-                        "Tap card to drop down ${chapter.lessons.size} lessons"
+                        "Tap card to drop down ${chapter.lessons.size} pedestals"
                     } else {
                         "Tap to peek at locked trail"
                     },
@@ -504,9 +492,14 @@ private fun Tactile3DChapterCard(
     }
 }
 
+/**
+ * Sinusoidal S-curve winding quest path using tactile 3D circular/squircle pedestals
+ * (80.dp) with 6.dp bottom lips, floating title/duration pills, and a 3D Golden Trophy
+ * Pedestal at the end for the Chapter Assignment.
+ */
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
-private fun ChapterDropDownTrail(
+private fun ChapterWindingQuestTrail(
     chapter: Chapter,
     isChapterUnlocked: Boolean,
     uiState: KovaUiState,
@@ -516,12 +509,13 @@ private fun ChapterDropDownTrail(
     onAssignmentClick: (String) -> Unit,
 ) {
     val tactile = LocalKovaTactileColors.current
-    val curvePattern = listOf(-0.36f, 0.34f, -0.32f, 0.34f)
+    // Smooth sinusoidal S-curve horizontal bias pattern: left -> right -> left -> right
+    val curvePattern = listOf(-0.48f, 0.48f, -0.44f, 0.44f)
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 12.dp, bottom = 6.dp)
+            .padding(top = 14.dp, bottom = 10.dp)
             .testTag("chapter_dropdown_${chapter.id}"),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -529,7 +523,7 @@ private fun ChapterDropDownTrail(
             Surface(
                 shape = RoundedCornerShape(16.dp),
                 color = tactile.amberSoft,
-                border = BorderStroke(1.5.dp, tactile.amberFace),
+                border = BorderStroke(1.25.dp, tactile.amberFace),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 14.dp)
@@ -543,7 +537,7 @@ private fun ChapterDropDownTrail(
                     Icon(
                         imageVector = Icons.Outlined.LockClock,
                         contentDescription = null,
-                        tint = tactile.amberLip,
+                        tint = tactile.amberFace,
                         modifier = Modifier.size(20.dp),
                     )
                     Text(
@@ -563,7 +557,7 @@ private fun ChapterDropDownTrail(
                 null
             }
 
-            TactileLessonNodeRow(
+            WindingQuestPedestalNode(
                 lesson = lesson,
                 horizontalBias = currentBias,
                 isChapterUnlocked = isChapterUnlocked,
@@ -576,7 +570,7 @@ private fun ChapterDropDownTrail(
             if (index < chapter.lessons.lastIndex) {
                 val nextBias = curvePattern[(index + 1) % curvePattern.size]
                 val connectorCompleted = isChapterUnlocked && lesson.status == LessonStatus.COMPLETED
-                TactilePathConnector(
+                SinusoidalSteppingTrailConnector(
                     startBias = currentBias,
                     endBias = nextBias,
                     isCompleted = connectorCompleted,
@@ -584,17 +578,16 @@ private fun ChapterDropDownTrail(
             }
         }
 
-        // Clean vertical connector down to the Chapter Assignment Trophy Card
-        TactilePathConnector(
+        // Stepping trail converging smoothly into the Golden Trophy Pedestal at center
+        SinusoidalSteppingTrailConnector(
             startBias = curvePattern[(chapter.lessons.size - 1).coerceAtLeast(0) % curvePattern.size],
             endBias = 0f,
             isCompleted = isChapterUnlocked && chapter.assignment.isUnlocked,
         )
 
-        ChapterAssignmentPathCard(
+        GoldenTrophyAssignmentNode(
             assignment = chapter.assignment,
             uiState = uiState,
-            originPrefix = "learn",
             sharedTransitionScope = sharedTransitionScope,
             animatedVisibilityScope = animatedVisibilityScope,
             onClick = { onAssignmentClick(chapter.assignment.id) },
@@ -603,7 +596,7 @@ private fun ChapterDropDownTrail(
 }
 
 @Composable
-private fun TactilePathConnector(
+private fun SinusoidalSteppingTrailConnector(
     startBias: Float,
     endBias: Float,
     isCompleted: Boolean,
@@ -613,17 +606,17 @@ private fun TactilePathConnector(
 
     val lineColor by animateColorAsState(
         targetValue = if (isCompleted) tactile.emeraldFace else tactile.pathInactive,
-        animationSpec = if (motion.enabled) tween(380) else snap(),
-        label = "tactile_connector_color",
+        animationSpec = if (motion.enabled) tween(340) else snap(),
+        label = "sinusoidal_connector_color",
     )
 
     Canvas(
         modifier = Modifier
             .fillMaxWidth()
-            .height(44.dp),
+            .height(50.dp),
     ) {
         val centerX = size.width / 2f
-        val maxShift = size.width * 0.22f
+        val maxShift = size.width * 0.28f
         val startX = centerX + startBias * maxShift
         val endX = centerX + endBias * maxShift
         val midY = size.height / 2f
@@ -640,26 +633,34 @@ private fun TactilePathConnector(
             )
         }
 
-        // Crisp solid track or clean dashed stone path — zero neon glow blur
-        drawPath(
-            path = path,
-            color = lineColor,
-            style = Stroke(
-                width = if (isCompleted) 5.dp.toPx() else 3.5.dp.toPx(),
-                cap = StrokeCap.Round,
-                pathEffect = if (isCompleted) {
-                    null
-                } else {
-                    PathEffect.dashPathEffect(floatArrayOf(14f, 12f), 0f)
-                },
-            ),
-        )
+        if (isCompleted) {
+            drawPath(
+                path = path,
+                color = tactile.emeraldLip.copy(alpha = 0.35f),
+                style = Stroke(width = 11.dp.toPx(), cap = StrokeCap.Round),
+            )
+            drawPath(
+                path = path,
+                color = lineColor,
+                style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round),
+            )
+        } else {
+            drawPath(
+                path = path,
+                color = lineColor,
+                style = Stroke(
+                    width = 5.5.dp.toPx(),
+                    cap = StrokeCap.Round,
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(2f, 22f), 0f),
+                ),
+            )
+        }
     }
 }
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
-private fun TactileLessonNodeRow(
+private fun WindingQuestPedestalNode(
     lesson: Lesson,
     horizontalBias: Float,
     isChapterUnlocked: Boolean,
@@ -674,172 +675,273 @@ private fun TactileLessonNodeRow(
     val isActiveUnlocked = effectiveStatus == LessonStatus.UNLOCKED
     val isCompleted = effectiveStatus == LessonStatus.COMPLETED
 
-    val alignment = when {
-        horizontalBias < -0.15f -> Alignment.CenterStart
-        horizontalBias > 0.15f -> Alignment.CenterEnd
-        else -> Alignment.Center
-    }
-
-    val startPadding = if (horizontalBias < -0.15f) 6.dp else 28.dp
-    val endPadding = if (horizontalBias > 0.15f) 6.dp else 28.dp
-
-    val cardFace = when (effectiveStatus) {
-        LessonStatus.COMPLETED -> tactile.cardFace
-        LessonStatus.UNLOCKED -> tactile.cardFace
-        LessonStatus.LOCKED -> tactile.stoneFace.copy(alpha = if (tactile.isDarkSurface) 0.9f else 0.72f)
-    }
-    val cardLip = when (effectiveStatus) {
-        LessonStatus.COMPLETED -> tactile.emeraldLip
-        LessonStatus.UNLOCKED -> tactile.cobaltLip
-        LessonStatus.LOCKED -> tactile.stoneLip
-    }
-    val cardBorder = when (effectiveStatus) {
-        LessonStatus.COMPLETED -> tactile.emeraldFace.copy(alpha = 0.65f)
-        LessonStatus.UNLOCKED -> tactile.cobaltFace
-        LessonStatus.LOCKED -> tactile.stoneLip
-    }
-
-    val capFace = when (effectiveStatus) {
+    val pedestalFace = when (effectiveStatus) {
         LessonStatus.COMPLETED -> tactile.emeraldFace
         LessonStatus.UNLOCKED -> tactile.cobaltFace
         LessonStatus.LOCKED -> tactile.stoneFace
     }
-    val capLip = when (effectiveStatus) {
+    val pedestalLip = when (effectiveStatus) {
         LessonStatus.COMPLETED -> tactile.emeraldLip
         LessonStatus.UNLOCKED -> tactile.cobaltLip
         LessonStatus.LOCKED -> tactile.stoneLip
     }
-    val capIcon = when (effectiveStatus) {
+    val pedestalIcon = when (effectiveStatus) {
         LessonStatus.COMPLETED -> Icons.Filled.Check
         LessonStatus.UNLOCKED -> Icons.Filled.PlayArrow
         LessonStatus.LOCKED -> Icons.Filled.Lock
     }
-    val capTint = if (effectiveStatus == LessonStatus.LOCKED) tactile.stoneLabel else Color.White
+    val pedestalTint = when (effectiveStatus) {
+        LessonStatus.COMPLETED -> tactile.onEmeraldFace
+        LessonStatus.UNLOCKED -> tactile.onCobaltFace
+        LessonStatus.LOCKED -> tactile.stoneLabel
+    }
 
-    Box(
+    val pedestalOnLeft = horizontalBias < 0f
+    val sharedKey = DetailDestination.LessonDetail(lesson.id).sharedBoundsKey
+
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = startPadding, end = endPadding)
+            .padding(horizontal = 10.dp)
             .shakeOnTrigger(triggerNonce = shakeNonce, enabled = motion.enabled),
-        contentAlignment = alignment,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = if (pedestalOnLeft) Arrangement.Start else Arrangement.End,
     ) {
-        val sharedKey = DetailDestination.LessonDetail(lesson.id).sharedBoundsKey
-
-        with(sharedTransitionScope) {
-            KovaTactileCard(
-                shape = KovaExpressiveShapes.LessonSquircleNode,
-                faceColor = cardFace,
-                lipColor = cardLip,
-                borderColor = cardBorder,
-                lipHeight = if (effectiveStatus == LessonStatus.LOCKED) 4.dp else 5.dp,
-                borderWidth = if (isActiveUnlocked) 2.dp else 1.5.dp,
+        if (!pedestalOnLeft) {
+            FloatingLessonInfoPill(
+                lesson = lesson,
+                effectiveStatus = effectiveStatus,
+                alignEnd = true,
                 onClick = onClick,
                 modifier = Modifier
-                    .fillMaxWidth(0.94f)
+                    .weight(1f, fill = false)
+                    .widthIn(max = 228.dp)
+                    .padding(end = 10.dp),
+            )
+        }
+
+        with(sharedTransitionScope) {
+            Kova3DQuestPedestal(
+                icon = pedestalIcon,
+                contentDescription = when (effectiveStatus) {
+                    LessonStatus.COMPLETED -> "Lesson ${lesson.code} completed"
+                    LessonStatus.UNLOCKED -> "Start active lesson ${lesson.code}"
+                    LessonStatus.LOCKED -> "Lesson ${lesson.code} locked"
+                },
+                faceColor = pedestalFace,
+                lipColor = pedestalLip,
+                iconTint = pedestalTint,
+                isActiveQuest = isActiveUnlocked,
+                onClick = onClick,
+                pedestalSize = 80.dp,
+                lipHeight = 6.dp,
+                modifier = Modifier
                     .sharedBounds(
                         sharedContentState = rememberSharedContentState(key = sharedKey),
                         animatedVisibilityScope = animatedVisibilityScope,
                         boundsTransform = { _, _ -> motion.containerBoundsSpec },
                     )
                     .testTag("lesson_node_${lesson.id}"),
+            )
+        }
+
+        if (pedestalOnLeft) {
+            FloatingLessonInfoPill(
+                lesson = lesson,
+                effectiveStatus = effectiveStatus,
+                alignEnd = false,
+                onClick = onClick,
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .widthIn(max = 228.dp)
+                    .padding(start = 10.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun FloatingLessonInfoPill(
+    lesson: Lesson,
+    effectiveStatus: LessonStatus,
+    alignEnd: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val tactile = LocalKovaTactileColors.current
+    val isLocked = effectiveStatus == LessonStatus.LOCKED
+    val isActive = effectiveStatus == LessonStatus.UNLOCKED
+    val isCompleted = effectiveStatus == LessonStatus.COMPLETED
+
+    KovaTactileCard(
+        shape = RoundedCornerShape(18.dp),
+        faceColor = if (isLocked) tactile.stoneFace.copy(alpha = 0.72f) else tactile.cardFace,
+        lipColor = when (effectiveStatus) {
+            LessonStatus.COMPLETED -> tactile.emeraldLip
+            LessonStatus.UNLOCKED -> tactile.cobaltLip
+            LessonStatus.LOCKED -> tactile.stoneLip
+        },
+        borderColor = when (effectiveStatus) {
+            LessonStatus.COMPLETED -> tactile.emeraldFace.copy(alpha = 0.55f)
+            LessonStatus.UNLOCKED -> tactile.cobaltFace
+            LessonStatus.LOCKED -> tactile.cardOutline
+        },
+        lipHeight = 4.dp,
+        borderWidth = if (isActive) 1.5.dp else tactile.cardBorderWidthDp.dp,
+        onClick = onClick,
+        modifier = modifier,
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 13.dp, vertical = 10.dp),
+            horizontalAlignment = if (alignEnd) Alignment.End else Alignment.Start,
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 13.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                ) {
-                    // 3D Tactile Game Node Keycap
-                    KovaTactileNodeCap(
-                        icon = capIcon,
-                        contentDescription = when (effectiveStatus) {
-                            LessonStatus.COMPLETED -> "Lesson completed"
-                            LessonStatus.UNLOCKED -> "Start active lesson"
-                            LessonStatus.LOCKED -> "Lesson locked"
-                        },
-                        faceColor = capFace,
-                        lipColor = capLip,
-                        iconTint = capTint,
-                        size = 54.dp,
-                        lipHeight = 5.dp,
+                Text(
+                    text = "${lesson.code} · ${lesson.estimatedMinutes}m",
+                    style = KovaCodeTextStyle.copy(fontWeight = FontWeight.Bold),
+                    color = when (effectiveStatus) {
+                        LessonStatus.COMPLETED -> tactile.emeraldFace
+                        LessonStatus.UNLOCKED -> tactile.cobaltFace
+                        LessonStatus.LOCKED -> tactile.stoneLabel
+                    },
+                )
+                if (isActive) {
+                    KovaPillBadge(
+                        text = stringResource(R.string.start_pill),
+                        containerColor = tactile.cobaltFace,
+                        contentColor = tactile.onCobaltFace,
+                        borderColor = tactile.cobaltLip,
                     )
-
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        ) {
-                            Text(
-                                text = lesson.code,
-                                style = KovaCodeTextStyle.copy(fontWeight = FontWeight.Bold),
-                                color = when (effectiveStatus) {
-                                    LessonStatus.COMPLETED -> tactile.emeraldFace
-                                    LessonStatus.UNLOCKED -> tactile.cobaltFace
-                                    LessonStatus.LOCKED -> tactile.stoneLabel
-                                },
-                            )
-                            Text(
-                                text = "· ${lesson.estimatedMinutes}m",
-                                style = KovaCodeTextStyle,
-                                color = if (effectiveStatus == LessonStatus.LOCKED) {
-                                    tactile.stoneLabel
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                },
-                            )
-
-                            Spacer(modifier = Modifier.weight(1f))
-
-                            if (isActiveUnlocked) {
-                                KovaPillBadge(
-                                    text = stringResource(R.string.start_pill),
-                                    containerColor = tactile.cobaltFace,
-                                    contentColor = Color.White,
-                                    borderColor = tactile.cobaltLip,
-                                )
-                            } else if (isCompleted) {
-                                KovaPillBadge(
-                                    text = "${lesson.passScorePercent ?: 85}%",
-                                    containerColor = tactile.emeraldSoft,
-                                    contentColor = tactile.onEmeraldSoft,
-                                    borderColor = tactile.emeraldFace.copy(alpha = 0.4f),
-                                )
-                            }
-                        }
-
-                        Text(
-                            text = lesson.title,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = if (effectiveStatus == LessonStatus.LOCKED) {
-                                tactile.stoneLabel
-                            } else {
-                                MaterialTheme.colorScheme.onSurface
-                            },
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            text = lesson.subtitle,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (effectiveStatus == LessonStatus.LOCKED) {
-                                tactile.stoneLabel.copy(alpha = 0.85f)
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
+                } else if (isCompleted) {
+                    KovaPillBadge(
+                        text = "${lesson.passScorePercent ?: 85}%",
+                        containerColor = tactile.emeraldSoft,
+                        contentColor = tactile.onEmeraldSoft,
+                        borderColor = Color.Transparent,
+                    )
                 }
+            }
+            Text(
+                text = lesson.title,
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                color = if (isLocked) tactile.stoneLabel else MaterialTheme.colorScheme.onSurface,
+                textAlign = if (alignEnd) TextAlign.End else TextAlign.Start,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalSharedTransitionApi::class)
+@Composable
+private fun GoldenTrophyAssignmentNode(
+    assignment: ChapterAssignment,
+    uiState: KovaUiState,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedVisibilityScope: AnimatedVisibilityScope,
+    onClick: () -> Unit,
+) {
+    val motion = LocalKovaMotion.current
+    val tactile = LocalKovaTactileColors.current
+    val shakeNonce = if (uiState.lockedShakeEvent?.nodeId == assignment.id) {
+        uiState.lockedShakeEvent.nonce
+    } else {
+        null
+    }
+    val sharedKey = DetailDestination.AssignmentDetail(assignment.id, "learn").sharedBoundsKey
+    val isReady = assignment.isUnlocked || assignment.isCompleted || uiState.devUnlockAllOverride
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shakeOnTrigger(triggerNonce = shakeNonce, enabled = motion.enabled),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        with(sharedTransitionScope) {
+            Kova3DGoldenTrophyPedestal(
+                isUnlocked = isReady,
+                isCompleted = assignment.isCompleted,
+                onClick = onClick,
+                modifier = Modifier
+                    .sharedBounds(
+                        sharedContentState = rememberSharedContentState(key = sharedKey),
+                        animatedVisibilityScope = animatedVisibilityScope,
+                        boundsTransform = { _, _ -> motion.containerBoundsSpec },
+                    )
+                    .testTag("learn_assignment_card_${assignment.id}"),
+            )
+        }
+
+        KovaTactileCard(
+            shape = RoundedCornerShape(18.dp),
+            faceColor = if (isReady) tactile.cardFace else tactile.stoneFace.copy(alpha = 0.72f),
+            lipColor = when {
+                assignment.isCompleted -> tactile.emeraldLip
+                isReady -> tactile.amberLip
+                else -> tactile.stoneLip
+            },
+            borderColor = when {
+                assignment.isCompleted -> tactile.emeraldFace
+                isReady -> tactile.amberFace
+                else -> tactile.cardOutline
+            },
+            lipHeight = 4.dp,
+            onClick = onClick,
+            modifier = Modifier.widthIn(max = 310.dp),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                KovaPillBadge(
+                    text = if (assignment.isCompleted) "TROPHY CLAIMED" else assignment.chapterLabel,
+                    containerColor = when {
+                        assignment.isCompleted -> tactile.emeraldSoft
+                        isReady -> tactile.amberSoft
+                        else -> tactile.stoneFace
+                    },
+                    contentColor = when {
+                        assignment.isCompleted -> tactile.onEmeraldSoft
+                        isReady -> tactile.onAmberSoft
+                        else -> tactile.stoneLabel
+                    },
+                    borderColor = Color.Transparent,
+                )
+                Text(
+                    text = assignment.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (isReady) MaterialTheme.colorScheme.onSurface else tactile.stoneLabel,
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    text = if (assignment.isCompleted) {
+                        "Completed · Next chapter unlocked"
+                    } else if (isReady) {
+                        "Tap Trophy · Synced with Lab Hub"
+                    } else {
+                        stringResource(R.string.assignment_optional_hint)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (isReady) MaterialTheme.colorScheme.onSurfaceVariant else tactile.stoneLabel,
+                    textAlign = TextAlign.Center,
+                )
             }
         }
     }
 }
 
+/**
+ * Shared Chapter Assignment card used inside LabScreen's Assignments Hub.
+ */
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun ChapterAssignmentPathCard(
@@ -861,11 +963,7 @@ fun ChapterAssignmentPathCard(
     val sharedKey = DetailDestination.AssignmentDetail(assignment.id, originPrefix).sharedBoundsKey
     val isReady = assignment.isUnlocked || assignment.isCompleted || uiState.devUnlockAllOverride
 
-    val faceColor = when {
-        assignment.isCompleted -> tactile.cardFace
-        isReady -> tactile.cardFace
-        else -> tactile.stoneFace.copy(alpha = if (tactile.isDarkSurface) 0.9f else 0.72f)
-    }
+    val faceColor = if (isReady) tactile.cardFace else tactile.stoneFace.copy(alpha = 0.72f)
     val lipColor = when {
         assignment.isCompleted -> tactile.emeraldLip
         isReady -> tactile.amberLip
@@ -874,7 +972,7 @@ fun ChapterAssignmentPathCard(
     val borderColor = when {
         assignment.isCompleted -> tactile.emeraldFace
         isReady -> tactile.amberFace
-        else -> tactile.stoneLip
+        else -> tactile.cardOutline
     }
 
     with(sharedTransitionScope) {
@@ -884,7 +982,7 @@ fun ChapterAssignmentPathCard(
             lipColor = lipColor,
             borderColor = borderColor,
             lipHeight = 5.dp,
-            borderWidth = if (isReady) 2.dp else 1.5.dp,
+            borderWidth = if (isReady) 1.75.dp else tactile.cardBorderWidthDp.dp,
             onClick = onClick,
             modifier = modifier
                 .fillMaxWidth()
@@ -920,7 +1018,11 @@ fun ChapterAssignmentPathCard(
                         isReady -> tactile.amberLip
                         else -> tactile.stoneLip
                     },
-                    contentColor = if (isReady) Color.White else tactile.stoneLabel,
+                    contentColor = when {
+                        assignment.isCompleted -> tactile.onEmeraldFace
+                        isReady -> tactile.onAmberFace
+                        else -> tactile.stoneLabel
+                    },
                     size = 50.dp,
                     iconSize = 24.dp,
                 )
@@ -966,7 +1068,7 @@ fun ChapterAssignmentPathCard(
                     contentDescription = null,
                     tint = when {
                         assignment.isCompleted -> tactile.emeraldFace
-                        isReady -> tactile.amberLip
+                        isReady -> tactile.amberFace
                         else -> tactile.stoneLabel
                     },
                 )
@@ -1025,7 +1127,7 @@ private fun TabletLearnSidePane(
                         arcLipColor = tactile.emeraldLip,
                         emblemFaceColor = tactile.amberFace,
                         emblemLipColor = tactile.amberLip,
-                        emblemIconTint = Color.White,
+                        emblemIconTint = tactile.onAmberFace,
                         size = 78.dp,
                         strokeWidth = 8.dp,
                     )
@@ -1036,13 +1138,8 @@ private fun TabletLearnSidePane(
                             color = MaterialTheme.colorScheme.onSurface,
                         )
                         Text(
-                            text = "${uiState.quota.dailyLessonsRemaining}/${uiState.quota.dailyLessonsMax} daily slots open",
-                            style = KovaCodeTextStyle.copy(fontWeight = FontWeight.Bold),
-                            color = tactile.amberLip,
-                        )
-                        Text(
-                            text = "Pass >=80% per lesson",
-                            style = MaterialTheme.typography.bodySmall,
+                            text = "${uiState.quota.dailyLessonsRemaining}/${uiState.quota.dailyLessonsMax} daily slots remaining",
+                            style = KovaCodeTextStyle,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -1055,56 +1152,46 @@ private fun TabletLearnSidePane(
                 shape = KovaExpressiveShapes.StatAndAssignmentCard,
                 faceColor = tactile.cardFace,
                 lipColor = tactile.cobaltLip,
-                borderColor = tactile.cobaltFace,
+                borderColor = tactile.cobaltFace.copy(alpha = 0.55f),
                 lipHeight = 5.dp,
-                onClick = { onLessonClick(activeLesson.id) },
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        KovaPillBadge(
-                            text = "UP NEXT · ${activeLesson.code}",
-                            containerColor = tactile.cobaltSoft,
-                            contentColor = tactile.onCobaltSoft,
-                            borderColor = Color.Transparent,
-                        )
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Schedule,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(14.dp),
-                            )
-                            Text(
-                                text = "${activeLesson.estimatedMinutes}m",
-                                style = KovaCodeTextStyle,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
+                    KovaPillBadge(
+                        text = "ACTIVE QUEST · ${activeLesson.code}",
+                        containerColor = tactile.cobaltSoft,
+                        contentColor = tactile.onCobaltSoft,
+                        borderColor = Color.Transparent,
+                    )
                     Text(
                         text = activeLesson.title,
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                     Text(
-                        text = activeLesson.analogyTeaser,
+                        text = activeLesson.subtitle,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 3,
-                        overflow = TextOverflow.Ellipsis,
                     )
+                    KovaTactileButton(
+                        onClick = { onLessonClick(activeLesson.id) },
+                        faceColor = tactile.cobaltFace,
+                        lipColor = tactile.cobaltLip,
+                        contentColor = tactile.onCobaltFace,
+                        minHeight = 46.dp,
+                        lipHeight = 4.dp,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            text = "Open Lesson ${activeLesson.code}",
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                            color = tactile.onCobaltFace,
+                        )
+                    }
                 }
             }
         }
@@ -1115,73 +1202,35 @@ private fun TabletLearnSidePane(
             lipColor = tactile.cardLip,
             borderColor = tactile.cardOutline,
             lipHeight = 4.dp,
-            onClick = { onAssignmentClick(primaryChapter.assignment.id) },
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Text(
-                    text = "Chapter 1 Gate",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = tactile.amberLip,
-                )
-                Text(
-                    text = primaryChapter.assignment.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    text = when {
-                        primaryChapter.assignment.isCompleted -> "Completed · Chapter 2 Open"
-                        primaryChapter.assignment.isUnlocked || uiState.devUnlockAllOverride -> "Unlocked · Tap to review"
-                        else -> "Unlocks after Lesson 1.4"
-                    },
-                    style = KovaCodeTextStyle,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-
-        KovaTactileCard(
-            shape = KovaExpressiveShapes.StatAndAssignmentCard,
-            faceColor = tactile.emeraldSoft,
-            lipColor = tactile.emeraldLip,
-            borderColor = tactile.emeraldFace,
-            lipHeight = 4.dp,
             onClick = { onRevisionSheetClick(primaryChapter.id) },
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(14.dp),
+                    .padding(15.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.AutoStories,
-                        contentDescription = null,
-                        tint = tactile.onEmeraldSoft,
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Chapter ${primaryChapter.number} Cheat Sheet",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
                     Text(
-                        text = "Open Chapter 1 Revision Sheet",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = tactile.onEmeraldSoft,
+                        text = "${primaryChapter.revisionBulletPoints.size} rapid-recall points",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 Icon(
                     imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
                     contentDescription = null,
-                    tint = tactile.onEmeraldSoft,
-                    modifier = Modifier.size(18.dp),
+                    tint = tactile.emeraldFace,
                 )
             }
         }
+
+        Spacer(modifier = Modifier.height(4.dp))
     }
 }

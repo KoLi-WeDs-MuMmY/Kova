@@ -193,7 +193,7 @@ private fun VirtualPromptBuilderPreviewCard() {
                     contentDescription = null,
                     containerColor = tactile.cobaltFace,
                     lipColor = tactile.cobaltLip,
-                    contentColor = Color.White,
+                    contentColor = tactile.onCobaltFace,
                     size = 46.dp,
                     iconSize = 22.dp,
                     shape = KovaExpressiveShapes.SoftCloverBadge,
