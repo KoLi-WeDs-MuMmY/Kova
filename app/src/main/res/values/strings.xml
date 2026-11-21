@@ -1,0 +1,73 @@
+<resources>
+    <string name="app_name">Kova</string>
+    <string name="brand_subtitle">KOTLIN &amp; ANDROID MASTERY</string>
+
+    <!-- Navigation -->
+    <string name="nav_learn">Learn</string>
+    <string name="nav_lab">Lab</string>
+    <string name="nav_ai">AI</string>
+    <string name="nav_revision">Revision</string>
+
+    <!-- Top Chrome & Floating Mode -->
+    <string name="mode_full_view">Full View</string>
+    <string name="mode_floating">Floating</string>
+    <string name="cd_toggle_floating_mode">Toggle between Full View and Floating Companion Preview</string>
+    <string name="cd_open_settings">Open Developer and Appearance Settings</string>
+    <string name="cd_close_detail">Close detail sheet</string>
+    <string name="cd_back">Navigate back</string>
+    <string name="floating_preview_label">FLOATING COMPANION PREVIEW</string>
+    <string name="floating_backdrop_hint">Simulated CodeAssist / Termux Workspace · Drag header or tap snap corners</string>
+
+    <!-- Learn Screen -->
+    <string name="revision_sheet_cta">Revision Sheet</string>
+    <string name="start_pill">START</string>
+    <string name="chapter_locked_banner">Complete Chapter 1 Assignment to Unlock</string>
+    <string name="assignment_badge">CHAPTER ASSIGNMENT</string>
+    <string name="assignment_optional_hint">Unlocked after Lesson 1.4 · Required before Chapter 2</string>
+    <string name="tablet_side_progress_title">Mastery Telemetry</string>
+    <string name="tablet_side_quick_stats">Daily &amp; Path Pulse</string>
+
+    <!-- Lesson Detail Placeholder -->
+    <string name="phase2_lesson_tag">PHASE 2 PREVIEW SHELL</string>
+    <string name="lesson_test_section_title">Complete &amp; Take Integrated Lesson Test</string>
+    <string name="lesson_test_pass_cta">Pass Mock Test (85%)</string>
+    <string name="lesson_test_passed_badge">MASTERED · 85% PASSED</string>
+    <string name="lesson_test_subtitle">Passing unlocks the next node along your path and uses 1 daily lesson slot.</string>
+
+    <!-- Lab Screen -->
+    <string name="lab_assignments_title">Chapter Assignments Hub</string>
+    <string name="lab_assignments_subtitle">Synced live with your Learn path gating</string>
+    <string name="lab_prompt_builder_title">Virtual Folder/File Prompt Builder</string>
+    <string name="lab_prompt_builder_badge">COMING IN PHASE 3</string>
+    <string name="lab_prompt_builder_desc">Assemble virtual &lt;Folder&gt; and &lt;File&gt; bundles into single copy-ready AI prompts without uploading files.</string>
+    <string name="assignment_mark_complete">Mark Assignment Complete</string>
+    <string name="assignment_completed_badge">ASSIGNMENT COMPLETED</string>
+
+    <!-- AI Screen -->
+    <string name="ai_tutor_title">Scoped Lesson Tutor</string>
+    <string name="ai_tutor_badge">PHASE 3 SKELETON</string>
+    <string name="ai_context_locked_label">LOCKED CONTEXT</string>
+    <string name="ai_input_placeholder">Ask about active lesson code or variables (Phase 3)…</string>
+
+    <!-- Revision Screen -->
+    <string name="revision_notes_title">Highlighted Lesson Notes</string>
+    <string name="revision_sr_title">Spaced-Repetition Queue</string>
+    <string name="filter_all">All</string>
+    <string name="filter_key_idea">Key Idea</string>
+    <string name="filter_code_rule">Code Rule</string>
+    <string name="filter_ask_ai">Ask AI</string>
+
+    <!-- Settings Sheet -->
+    <string name="settings_title">Appearance &amp; Developer Controls</string>
+    <string name="settings_theme_mode">Surface Theme</string>
+    <string name="settings_theme_obsidian">Obsidian</string>
+    <string name="settings_theme_amoled">AMOLED</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_dynamic_color">Material You Dynamic Color</string>
+    <string name="settings_dynamic_color_desc">Android 12+ wallpaper palette (preserves #000000 in AMOLED mode)</string>
+    <string name="settings_motion_title">Expressive Spring Motion</string>
+    <string name="settings_motion_desc">Toggle spring container transforms, pulsing halos, and shake feedback</string>
+    <string name="settings_dev_override">Dev Override: Unlock All &amp; Reset Daily Limit</string>
+    <string name="settings_dev_override_desc">Unlock every lesson &amp; chapter freely and restore 3/3 daily quota</string>
+    <string name="settings_reset_demo">Reset Phase 1 Mock Progress</string>
+</resources>
