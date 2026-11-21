@@ -47,8 +47,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -61,6 +59,7 @@ import com.example.R
 import com.example.ui.theme.KovaCodeTextStyle
 import com.example.ui.theme.KovaExpressiveShapes
 import com.example.ui.theme.LocalKovaMotion
+import com.example.ui.theme.LocalKovaTactileColors
 import kotlin.math.roundToInt
 
 private enum class SnapCorner(val label: String) {
@@ -73,7 +72,7 @@ private enum class SnapCorner(val label: String) {
 
 /**
  * Smoothly transitions between Full View and a draggable Floating Companion Window preview
- * over a dimmed simulated CodeAssist/Termux workspace backdrop with corner-snap controls.
+ * over a dimmed simulated CodeAssist/Termux workspace backdrop with tactile 3D frame and corner snap.
  */
 @Composable
 fun FloatingCompanionHost(
@@ -83,6 +82,7 @@ fun FloatingCompanionHost(
     content: @Composable (isCompactFloating: Boolean) -> Unit,
 ) {
     val motion = LocalKovaMotion.current
+    val tactile = LocalKovaTactileColors.current
     val density = LocalDensity.current
 
     BoxWithConstraints(
@@ -123,7 +123,7 @@ fun FloatingCompanionHost(
             label = "floating_height",
         )
         val animatedCornerRadius by animateDpAsState(
-            targetValue = if (isFloatingPreview) 28.dp else 0.dp,
+            targetValue = if (isFloatingPreview) 26.dp else 0.dp,
             animationSpec = if (motion.enabled) {
                 spring(dampingRatio = 0.82f, stiffness = 380f)
             } else {
@@ -174,7 +174,6 @@ fun FloatingCompanionHost(
             label = "floating_offset_y",
         )
 
-        // Dimmed simulated CodeAssist / Termux workspace backdrop behind floating window
         AnimatedVisibility(
             visible = isFloatingPreview,
             enter = fadeIn(),
@@ -209,32 +208,8 @@ fun FloatingCompanionHost(
             )
         }
 
-        // Main App Frame (Full Screen or Draggable Floating Companion Window)
         val frameShape = RoundedCornerShape(animatedCornerRadius)
-        val borderModifier = if (isFloatingPreview) {
-            Modifier
-                .shadow(
-                    elevation = 24.dp,
-                    shape = frameShape,
-                    ambientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f),
-                    spotColor = Color.Black.copy(alpha = 0.65f),
-                )
-                .border(
-                    BorderStroke(
-                        1.5.dp,
-                        Brush.linearGradient(
-                            listOf(
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.65f),
-                                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f),
-                                MaterialTheme.colorScheme.secondary.copy(alpha = 0.55f),
-                            ),
-                        ),
-                    ),
-                    frameShape,
-                )
-        } else {
-            Modifier
-        }
+        val lipDepth = if (isFloatingPreview) 6.dp else 0.dp
 
         Box(
             modifier = Modifier
@@ -245,24 +220,45 @@ fun FloatingCompanionHost(
                         y = animatedOffsetY.roundToInt(),
                     )
                 }
-                .size(width = animatedWidth, height = animatedHeight)
-                .then(borderModifier)
-                .clip(frameShape)
-                .background(MaterialTheme.colorScheme.background),
+                .size(width = animatedWidth, height = animatedHeight + lipDepth),
         ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                if (isFloatingPreview) {
-                    FloatingWindowDragHeader(
-                        onDrag = { dx, dy ->
-                            rawOffsetX = (rawOffsetX + dx).coerceIn(-maxOffsetX, maxOffsetX)
-                            rawOffsetY = (rawOffsetY + dy).coerceIn(-maxOffsetYUp, maxOffsetYDown)
-                        },
-                        onExpand = onExitFloating,
-                    )
-                }
+            if (isFloatingPreview) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .padding(top = lipDepth)
+                        .clip(frameShape)
+                        .background(tactile.cardLip),
+                )
+            }
 
-                Box(modifier = Modifier.weight(1f)) {
-                    content(isFloatingPreview)
+            Box(
+                modifier = Modifier
+                    .size(width = animatedWidth, height = animatedHeight)
+                    .then(
+                        if (isFloatingPreview) {
+                            Modifier.border(BorderStroke(2.dp, tactile.cardOutline), frameShape)
+                        } else {
+                            Modifier
+                        },
+                    )
+                    .clip(frameShape)
+                    .background(MaterialTheme.colorScheme.background),
+            ) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    if (isFloatingPreview) {
+                        FloatingWindowDragHeader(
+                            onDrag = { dx, dy ->
+                                rawOffsetX = (rawOffsetX + dx).coerceIn(-maxOffsetX, maxOffsetX)
+                                rawOffsetY = (rawOffsetY + dy).coerceIn(-maxOffsetYUp, maxOffsetYDown)
+                            },
+                            onExpand = onExitFloating,
+                        )
+                    }
+
+                    Box(modifier = Modifier.weight(1f)) {
+                        content(isFloatingPreview)
+                    }
                 }
             }
         }
@@ -274,10 +270,12 @@ private fun FloatingWindowDragHeader(
     onDrag: (Float, Float) -> Unit,
     onExpand: () -> Unit,
 ) {
+    val tactile = LocalKovaTactileColors.current
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+            .background(tactile.cardFace)
             .pointerInput(Unit) {
                 detectDragGestures { change, dragAmount ->
                     change.consume()
@@ -294,7 +292,7 @@ private fun FloatingWindowDragHeader(
                 modifier = Modifier
                     .size(8.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary),
+                    .background(tactile.cobaltFace),
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
@@ -320,7 +318,7 @@ private fun FloatingWindowDragHeader(
             Icon(
                 imageVector = Icons.Outlined.OpenInFull,
                 contentDescription = stringResource(R.string.cd_toggle_floating_mode),
-                tint = MaterialTheme.colorScheme.primary,
+                tint = tactile.cobaltFace,
                 modifier = Modifier.size(18.dp),
             )
         }
@@ -332,13 +330,14 @@ private fun SimulatedWorkspaceBackdrop(
     onSnap: (SnapCorner) -> Unit,
     onExitFloating: () -> Unit,
 ) {
+    val tactile = LocalKovaTactileColors.current
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF04060A))
+            .background(Color(0xFF1F2329))
             .clickable(onClick = onExitFloating),
     ) {
-        // Subtle simulated terminal/IDE grid lines to evoke CodeAssist / Termux behind the overlay
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -352,13 +351,13 @@ private fun SimulatedWorkspaceBackdrop(
                 Icon(
                     imageVector = Icons.Outlined.Terminal,
                     contentDescription = null,
-                    tint = Color(0xFF64748B),
+                    tint = Color(0xFF94A3B8),
                     modifier = Modifier.size(16.dp),
                 )
                 Text(
                     text = "CodeAssist · MainActivity.kt (Simulated Backdrop)",
                     style = KovaCodeTextStyle,
-                    color = Color(0xFF64748B),
+                    color = Color(0xFF94A3B8),
                 )
             }
             Spacer(modifier = Modifier.height(10.dp))
@@ -374,12 +373,11 @@ private fun SimulatedWorkspaceBackdrop(
                 Text(
                     text = line,
                     style = KovaCodeTextStyle,
-                    color = Color(0xFF334155),
+                    color = Color(0xFF64748B),
                 )
             }
         }
 
-        // Bottom corner-snap bar
         Surface(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -387,9 +385,8 @@ private fun SimulatedWorkspaceBackdrop(
                 .padding(horizontal = 16.dp, vertical = 12.dp)
                 .clickable(enabled = false) {},
             shape = KovaExpressiveShapes.Pill,
-            color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.94f),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-            tonalElevation = 8.dp,
+            color = tactile.cardFace,
+            border = BorderStroke(1.5.dp, tactile.cardOutline),
         ) {
             Row(
                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -406,13 +403,13 @@ private fun SimulatedWorkspaceBackdrop(
                     Surface(
                         onClick = { onSnap(corner) },
                         shape = KovaExpressiveShapes.Pill,
-                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        color = tactile.cobaltSoft,
                         modifier = Modifier.testTag("snap_corner_${corner.name.lowercase()}"),
                     ) {
                         Text(
                             text = corner.label,
                             style = KovaCodeTextStyle.copy(fontWeight = FontWeight.SemiBold),
-                            color = MaterialTheme.colorScheme.primary,
+                            color = tactile.onCobaltSoft,
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                         )
                     }

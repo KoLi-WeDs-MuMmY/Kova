@@ -34,17 +34,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.R
 import com.example.model.KovaUiState
-import com.example.ui.components.KovaElevatedCard
 import com.example.ui.components.KovaPillBadge
 import com.example.ui.components.KovaScallopedSealBadge
+import com.example.ui.components.KovaTactileCard
 import com.example.ui.theme.KovaCodeTextStyle
 import com.example.ui.theme.KovaExpressiveShapes
+import com.example.ui.theme.LocalKovaTactileColors
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -131,6 +134,8 @@ fun LabScreen(
 
 @Composable
 private fun AssignmentsHubHeader() {
+    val tactile = LocalKovaTactileColors.current
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -140,7 +145,7 @@ private fun AssignmentsHubHeader() {
             Text(
                 text = stringResource(R.string.lab_assignments_title),
                 style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = MaterialTheme.colorScheme.onBackground,
             )
             Text(
                 text = stringResource(R.string.lab_assignments_subtitle),
@@ -151,19 +156,23 @@ private fun AssignmentsHubHeader() {
         KovaPillBadge(
             text = "SYNCED",
             leadingIcon = Icons.Outlined.Sync,
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            containerColor = tactile.emeraldSoft,
+            contentColor = tactile.onEmeraldSoft,
+            borderColor = tactile.emeraldFace.copy(alpha = 0.35f),
         )
     }
 }
 
 @Composable
 private fun VirtualPromptBuilderPreviewCard() {
-    KovaElevatedCard(
+    val tactile = LocalKovaTactileColors.current
+
+    KovaTactileCard(
         shape = KovaExpressiveShapes.AsymmetricPreviewCard,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        accentGlowColor = MaterialTheme.colorScheme.primary,
-        elevation = 10.dp,
+        faceColor = tactile.cardFace,
+        lipColor = tactile.cobaltLip,
+        borderColor = tactile.cobaltFace.copy(alpha = 0.55f),
+        lipHeight = 5.dp,
         modifier = Modifier
             .fillMaxWidth()
             .testTag("virtual_prompt_builder_preview"),
@@ -182,8 +191,9 @@ private fun VirtualPromptBuilderPreviewCard() {
                 KovaScallopedSealBadge(
                     icon = Icons.Outlined.Science,
                     contentDescription = null,
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    containerColor = tactile.cobaltFace,
+                    lipColor = tactile.cobaltLip,
+                    contentColor = Color.White,
                     size = 46.dp,
                     iconSize = 22.dp,
                     shape = KovaExpressiveShapes.SoftCloverBadge,
@@ -191,9 +201,9 @@ private fun VirtualPromptBuilderPreviewCard() {
                 Column(modifier = Modifier.weight(1f)) {
                     KovaPillBadge(
                         text = stringResource(R.string.lab_prompt_builder_badge),
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                        borderColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.45f),
+                        containerColor = tactile.amberSoft,
+                        contentColor = tactile.onAmberSoft,
+                        borderColor = tactile.amberFace.copy(alpha = 0.45f),
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
@@ -210,14 +220,10 @@ private fun VirtualPromptBuilderPreviewCard() {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            // Styled Mock Virtual <Folder> / <File> Tree Preview
             Surface(
                 shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerLowest,
-                border = BorderStroke(
-                    1.dp,
-                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
-                ),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                border = BorderStroke(1.5.dp, tactile.cardOutline),
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Column(
@@ -232,12 +238,13 @@ private fun VirtualPromptBuilderPreviewCard() {
                         Text(
                             text = "VIRTUAL BUNDLE PREVIEW",
                             style = KovaCodeTextStyle.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.primary,
+                            color = tactile.cobaltFace,
                         )
                         KovaPillBadge(
                             text = "2 FILES · 0 UPLOADS",
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            containerColor = tactile.cardFace,
                             contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            borderColor = tactile.cardOutline,
                         )
                     }
 
@@ -268,24 +275,19 @@ private fun VirtualPromptBuilderPreviewCard() {
                 }
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(KovaExpressiveShapes.Pill)
+                    .background(tactile.stoneFace)
+                    .padding(vertical = 11.dp),
+                contentAlignment = Alignment.Center,
             ) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(KovaExpressiveShapes.Pill)
-                        .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.7f))
-                        .padding(vertical = 10.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = "+ Add Virtual Folder (Phase 3)",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                Text(
+                    text = "+ Add Virtual Folder (Phase 3)",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = tactile.stoneLabel,
+                )
             }
         }
     }
@@ -294,10 +296,12 @@ private fun VirtualPromptBuilderPreviewCard() {
 @Composable
 private fun VirtualTreeLine(
     indent: Int,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     tag: String,
     isFolder: Boolean,
 ) {
+    val tactile = LocalKovaTactileColors.current
+
     Row(
         modifier = Modifier.padding(start = (indent * 18).dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -305,11 +309,7 @@ private fun VirtualTreeLine(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = if (isFolder) {
-                MaterialTheme.colorScheme.secondary
-            } else {
-                MaterialTheme.colorScheme.primary
-            },
+            tint = if (isFolder) tactile.amberLip else tactile.emeraldFace,
             modifier = Modifier.size(16.dp),
         )
         Spacer(modifier = Modifier.width(8.dp))

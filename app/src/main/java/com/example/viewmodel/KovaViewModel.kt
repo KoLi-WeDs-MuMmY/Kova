@@ -37,6 +37,17 @@ class KovaViewModel(
         }
     }
 
+    fun toggleChapterExpanded(chapterId: String) {
+        _uiState.update { state ->
+            val updated = if (chapterId in state.expandedChapterIds) {
+                state.expandedChapterIds - chapterId
+            } else {
+                state.expandedChapterIds + chapterId
+            }
+            state.copy(expandedChapterIds = updated)
+        }
+    }
+
     fun openLesson(lessonId: String) {
         val current = _uiState.value
         val lesson = current.findLesson(lessonId) ?: return
@@ -192,6 +203,11 @@ class KovaViewModel(
             }
 
             val nextChapter = updatedChapters.getOrNull(targetChapterIndex + 1)
+            val updatedExpanded = if (nextChapter != null) {
+                state.expandedChapterIds + nextChapter.id
+            } else {
+                state.expandedChapterIds
+            }
             val message = if (nextChapter != null) {
                 "Assignment complete! Chapter ${nextChapter.number}: ${nextChapter.title} is now unlocked."
             } else {
@@ -200,6 +216,7 @@ class KovaViewModel(
 
             state.copy(
                 chapters = updatedChapters,
+                expandedChapterIds = updatedExpanded,
                 snackbarMessage = message,
             )
         }

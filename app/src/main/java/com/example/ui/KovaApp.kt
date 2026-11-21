@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -23,7 +24,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -57,8 +57,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
@@ -68,10 +66,12 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.R
+import com.example.model.HighlightCategory
 import com.example.model.KovaTab
 import com.example.model.KovaUiState
 import com.example.ui.components.DeveloperSettingsSheet
 import com.example.ui.components.FloatingCompanionHost
+import com.example.ui.components.KovaTactileCard
 import com.example.ui.screens.AiScreen
 import com.example.ui.screens.DetailSheetHost
 import com.example.ui.screens.LabScreen
@@ -81,6 +81,7 @@ import com.example.ui.theme.KovaCodeTextStyle
 import com.example.ui.theme.KovaExpressiveShapes
 import com.example.ui.theme.KovaTheme
 import com.example.ui.theme.LocalKovaMotion
+import com.example.ui.theme.LocalKovaTactileColors
 import com.example.viewmodel.KovaViewModel
 
 private data class NavDestinationSpec(
@@ -132,6 +133,7 @@ fun KovaApp(
                 onTabSelected = viewModel::selectTab,
                 onToggleFloating = viewModel::toggleFloatingPreview,
                 onOpenSettings = { viewModel.setSettingsOpen(true) },
+                onToggleChapterExpanded = viewModel::toggleChapterExpanded,
                 onLessonClick = viewModel::openLesson,
                 onAssignmentClick = viewModel::openAssignment,
                 onNoteClick = viewModel::openNote,
@@ -166,6 +168,7 @@ private fun KovaShellContent(
     onTabSelected: (KovaTab) -> Unit,
     onToggleFloating: () -> Unit,
     onOpenSettings: () -> Unit,
+    onToggleChapterExpanded: (String) -> Unit,
     onLessonClick: (String) -> Unit,
     onAssignmentClick: (String, String) -> Unit,
     onNoteClick: (String) -> Unit,
@@ -173,9 +176,10 @@ private fun KovaShellContent(
     onCloseDetail: () -> Unit,
     onPassLessonMockTest: (String) -> Unit,
     onCompleteAssignment: (String) -> Unit,
-    onSelectHighlightFilter: (com.example.model.HighlightCategory?) -> Unit,
+    onSelectHighlightFilter: (HighlightCategory?) -> Unit,
 ) {
     val motion = LocalKovaMotion.current
+    val tactile = LocalKovaTactileColors.current
 
     BoxWithConstraints(
         modifier = Modifier
@@ -236,6 +240,7 @@ private fun KovaShellContent(
                                             isWideTabletLayout = useTwoPane,
                                             sharedTransitionScope = this@SharedTransitionLayout,
                                             animatedVisibilityScope = this@AnimatedContent,
+                                            onToggleChapterExpanded = onToggleChapterExpanded,
                                             onLessonClick = onLessonClick,
                                             onAssignmentClick = { id -> onAssignmentClick(id, "learn") },
                                             onRevisionSheetClick = onRevisionSheetClick,
@@ -265,7 +270,7 @@ private fun KovaShellContent(
                             }
 
                             if (!useTabletRail) {
-                                KovaFloatingBottomNavBar(
+                                KovaTactileBottomNavBar(
                                     selectedTab = uiState.selectedTab,
                                     isCompactFloating = isCompactFloating,
                                     onTabSelected = onTabSelected,
@@ -277,7 +282,7 @@ private fun KovaShellContent(
                 }
             }
 
-            // Floating Snackbar Host
+            // Crisp Tactile Snackbar Host
             SnackbarHost(
                 hostState = snackbarHostState,
                 modifier = Modifier
@@ -292,8 +297,8 @@ private fun KovaShellContent(
                 Snackbar(
                     snackbarData = data,
                     shape = KovaExpressiveShapes.StatAndAssignmentCard,
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    containerColor = if (tactile.isDarkSurface) tactile.cardFace else Color(0xFF1E293B),
+                    contentColor = Color.White,
                 )
             }
         }
@@ -308,6 +313,8 @@ private fun KovaTopBar(
     onToggleFloating: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
+    val tactile = LocalKovaTactileColors.current
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -319,31 +326,38 @@ private fun KovaTopBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        // Brand emblem & title
+        // Tactile 3D Brand Emblem & Title
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            val badgeSize = if (isCompactFloating) 34.dp else 40.dp
             Box(
-                modifier = Modifier
-                    .size(if (isCompactFloating) 32.dp else 38.dp)
-                    .clip(KovaExpressiveShapes.LessonSquircleNode)
-                    .background(
-                        Brush.linearGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.primary,
-                                MaterialTheme.colorScheme.primaryContainer,
-                            ),
-                        ),
-                    ),
-                contentAlignment = Alignment.Center,
+                modifier = Modifier.size(width = badgeSize, height = badgeSize + 4.dp),
+                contentAlignment = Alignment.TopCenter,
             ) {
-                Text(
-                    text = "K",
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onPrimary,
+                Box(
+                    modifier = Modifier
+                        .size(badgeSize)
+                        .padding(top = 4.dp)
+                        .clip(KovaExpressiveShapes.LessonSquircleNode)
+                        .background(tactile.emeraldLip),
                 )
+                Box(
+                    modifier = Modifier
+                        .size(badgeSize)
+                        .clip(KovaExpressiveShapes.LessonSquircleNode)
+                        .background(tactile.emeraldFace),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "K",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        color = Color.White,
+                    )
+                }
             }
+
             Column {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -352,17 +366,18 @@ private fun KovaTopBar(
                     Text(
                         text = stringResource(R.string.app_name),
                         style = MaterialTheme.typography.headlineSmall,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = MaterialTheme.colorScheme.onBackground,
                     )
                     if (devOverrideEnabled) {
                         Surface(
                             shape = CircleShape,
-                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            color = tactile.amberSoft,
+                            border = BorderStroke(1.dp, tactile.amberFace),
                         ) {
                             Text(
                                 text = "DEV",
                                 style = KovaCodeTextStyle.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                color = tactile.onAmberSoft,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                             )
                         }
@@ -378,7 +393,7 @@ private fun KovaTopBar(
             }
         }
 
-        // Right controls: Full View / Floating Pill Toggle + Settings Gear
+        // Right controls: Tactile Floating Toggle Pill + Settings Gear
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -386,21 +401,13 @@ private fun KovaTopBar(
             Surface(
                 onClick = onToggleFloating,
                 shape = KovaExpressiveShapes.Pill,
-                color = if (isFloatingPreview) {
-                    MaterialTheme.colorScheme.primaryContainer
-                } else {
-                    MaterialTheme.colorScheme.surfaceContainerHigh
-                },
+                color = if (isFloatingPreview) tactile.cobaltFace else tactile.cardFace,
                 border = BorderStroke(
-                    1.dp,
-                    if (isFloatingPreview) {
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
-                    } else {
-                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
-                    },
+                    1.5.dp,
+                    if (isFloatingPreview) tactile.cobaltLip else tactile.cardOutline,
                 ),
                 modifier = Modifier
-                    .height(40.dp)
+                    .height(42.dp)
                     .testTag("toggle_floating_preview_pill"),
             ) {
                 Row(
@@ -415,11 +422,7 @@ private fun KovaTopBar(
                             Icons.Outlined.PictureInPictureAlt
                         },
                         contentDescription = stringResource(R.string.cd_toggle_floating_mode),
-                        tint = if (isFloatingPreview) {
-                            MaterialTheme.colorScheme.onPrimaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.primary
-                        },
+                        tint = if (isFloatingPreview) Color.White else tactile.cobaltFace,
                         modifier = Modifier.size(16.dp),
                     )
                     Text(
@@ -429,22 +432,15 @@ private fun KovaTopBar(
                             stringResource(R.string.mode_floating)
                         },
                         style = MaterialTheme.typography.labelLarge,
-                        color = if (isFloatingPreview) {
-                            MaterialTheme.colorScheme.onPrimaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.onSurface
-                        },
+                        color = if (isFloatingPreview) Color.White else MaterialTheme.colorScheme.onSurface,
                     )
                 }
             }
 
             Surface(
                 shape = CircleShape,
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                border = BorderStroke(
-                    1.dp,
-                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
-                ),
+                color = tactile.cardFace,
+                border = BorderStroke(1.5.dp, tactile.cardOutline),
             ) {
                 IconButton(
                     onClick = onOpenSettings,
@@ -465,39 +461,33 @@ private fun KovaTopBar(
 }
 
 @Composable
-private fun KovaFloatingBottomNavBar(
+private fun KovaTactileBottomNavBar(
     selectedTab: KovaTab,
     isCompactFloating: Boolean,
     onTabSelected: (KovaTab) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val navShape = RoundedCornerShape(28.dp)
+    val tactile = LocalKovaTactileColors.current
+    val navShape = RoundedCornerShape(26.dp)
 
     Box(
         modifier = modifier
             .fillMaxWidth()
             .then(if (!isCompactFloating) Modifier.navigationBarsPadding() else Modifier)
             .padding(
-                horizontal = if (isCompactFloating) 10.dp else 18.dp,
+                horizontal = if (isCompactFloating) 10.dp else 16.dp,
                 vertical = if (isCompactFloating) 8.dp else 12.dp,
             ),
         contentAlignment = Alignment.Center,
     ) {
-        Surface(
+        KovaTactileCard(
             shape = navShape,
-            color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.96f),
-            border = BorderStroke(
-                1.dp,
-                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f),
-            ),
+            faceColor = tactile.cardFace,
+            lipColor = tactile.cardLip,
+            borderColor = tactile.cardOutline,
+            lipHeight = 4.dp,
             modifier = Modifier
                 .fillMaxWidth()
-                .shadow(
-                    elevation = 16.dp,
-                    shape = navShape,
-                    ambientColor = Color.Black.copy(alpha = 0.45f),
-                    spotColor = Color.Black.copy(alpha = 0.45f),
-                )
                 .testTag("kova_floating_bottom_nav"),
         ) {
             Row(
@@ -513,10 +503,11 @@ private fun KovaFloatingBottomNavBar(
                     Surface(
                         onClick = { onTabSelected(dest.tab) },
                         shape = KovaExpressiveShapes.Pill,
-                        color = if (selected) {
-                            MaterialTheme.colorScheme.primaryContainer
+                        color = if (selected) tactile.cobaltSoft else Color.Transparent,
+                        border = if (selected) {
+                            BorderStroke(1.dp, tactile.cobaltFace.copy(alpha = 0.4f))
                         } else {
-                            Color.Transparent
+                            null
                         },
                         modifier = Modifier
                             .height(48.dp)
@@ -534,7 +525,7 @@ private fun KovaFloatingBottomNavBar(
                                 imageVector = if (selected) dest.selectedIcon else dest.unselectedIcon,
                                 contentDescription = label,
                                 tint = if (selected) {
-                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                    tactile.cobaltFace
                                 } else {
                                     MaterialTheme.colorScheme.onSurfaceVariant
                                 },
@@ -547,7 +538,7 @@ private fun KovaFloatingBottomNavBar(
                                         fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                                     ),
                                     color = if (selected) {
-                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                        tactile.onCobaltSoft
                                     } else {
                                         MaterialTheme.colorScheme.onSurfaceVariant
                                     },
@@ -566,11 +557,14 @@ private fun KovaNavigationRail(
     selectedTab: KovaTab,
     onTabSelected: (KovaTab) -> Unit,
 ) {
+    val tactile = LocalKovaTactileColors.current
+
     NavigationRail(
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+        containerColor = tactile.cardFace,
         contentColor = MaterialTheme.colorScheme.onSurface,
         modifier = Modifier
             .fillMaxHeight()
+            .border(BorderStroke(1.dp, tactile.cardOutline))
             .statusBarsPadding()
             .navigationBarsPadding()
             .padding(vertical = 8.dp)
@@ -596,9 +590,9 @@ private fun KovaNavigationRail(
                     )
                 },
                 colors = NavigationRailItemDefaults.colors(
-                    selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    selectedTextColor = MaterialTheme.colorScheme.primary,
-                    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                    selectedIconColor = tactile.cobaltFace,
+                    selectedTextColor = tactile.cobaltFace,
+                    indicatorColor = tactile.cobaltSoft,
                     unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 ),

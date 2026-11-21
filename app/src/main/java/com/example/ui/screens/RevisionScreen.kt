@@ -46,12 +46,13 @@ import com.example.model.HighlightCategory
 import com.example.model.HighlightNote
 import com.example.model.KovaUiState
 import com.example.model.SpacedRepetitionItem
-import com.example.ui.components.KovaElevatedCard
 import com.example.ui.components.KovaPillBadge
+import com.example.ui.components.KovaTactileButton
+import com.example.ui.components.KovaTactileCard
 import com.example.ui.theme.KovaCodeTextStyle
 import com.example.ui.theme.KovaExpressiveShapes
 import com.example.ui.theme.LocalKovaMotion
-import com.example.ui.theme.LocalKovaSemanticColors
+import com.example.ui.theme.LocalKovaTactileColors
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -119,7 +120,7 @@ fun RevisionScreen(
                     Text(
                         text = stringResource(R.string.revision_sr_title),
                         style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = MaterialTheme.colorScheme.onBackground,
                         modifier = Modifier.padding(top = 6.dp),
                     )
                 }
@@ -170,7 +171,7 @@ fun RevisionScreen(
                 Text(
                     text = stringResource(R.string.revision_sr_title),
                     style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = MaterialTheme.colorScheme.onBackground,
                 )
             }
             items(
@@ -188,13 +189,13 @@ private fun NotesSectionHeader(
     selectedFilter: HighlightCategory?,
     onSelectFilter: (HighlightCategory?) -> Unit,
 ) {
-    val semantic = LocalKovaSemanticColors.current
+    val tactile = LocalKovaTactileColors.current
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
             text = stringResource(R.string.revision_notes_title),
             style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = MaterialTheme.colorScheme.onBackground,
         )
 
         LazyRow(
@@ -203,7 +204,7 @@ private fun NotesSectionHeader(
             item {
                 HighlightFilterChip(
                     label = stringResource(R.string.filter_all),
-                    dotColor = MaterialTheme.colorScheme.primary,
+                    dotColor = tactile.cobaltFace,
                     selected = selectedFilter == null,
                     onClick = { onSelectFilter(null) },
                     testTag = "filter_notes_all",
@@ -212,7 +213,7 @@ private fun NotesSectionHeader(
             item {
                 HighlightFilterChip(
                     label = stringResource(R.string.filter_key_idea),
-                    dotColor = semantic.keyIdea,
+                    dotColor = tactile.keyIdea,
                     selected = selectedFilter == HighlightCategory.KEY_IDEA,
                     onClick = { onSelectFilter(HighlightCategory.KEY_IDEA) },
                     testTag = "filter_notes_key_idea",
@@ -221,7 +222,7 @@ private fun NotesSectionHeader(
             item {
                 HighlightFilterChip(
                     label = stringResource(R.string.filter_code_rule),
-                    dotColor = semantic.codeRule,
+                    dotColor = tactile.codeRule,
                     selected = selectedFilter == HighlightCategory.CODE_RULE,
                     onClick = { onSelectFilter(HighlightCategory.CODE_RULE) },
                     testTag = "filter_notes_code_rule",
@@ -230,7 +231,7 @@ private fun NotesSectionHeader(
             item {
                 HighlightFilterChip(
                     label = stringResource(R.string.filter_ask_ai),
-                    dotColor = semantic.askAi,
+                    dotColor = tactile.askAi,
                     selected = selectedFilter == HighlightCategory.ASK_AI,
                     onClick = { onSelectFilter(HighlightCategory.ASK_AI) },
                     testTag = "filter_notes_ask_ai",
@@ -248,6 +249,8 @@ private fun HighlightFilterChip(
     onClick: () -> Unit,
     testTag: String,
 ) {
+    val tactile = LocalKovaTactileColors.current
+
     FilterChip(
         selected = selected,
         onClick = onClick,
@@ -255,7 +258,7 @@ private fun HighlightFilterChip(
         leadingIcon = {
             Box(
                 modifier = Modifier
-                    .size(8.dp)
+                    .size(9.dp)
                     .clip(CircleShape)
                     .background(dotColor),
             )
@@ -267,14 +270,16 @@ private fun HighlightFilterChip(
             )
         },
         colors = FilterChipDefaults.filterChipColors(
-            selectedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            containerColor = tactile.cardFace,
+            selectedContainerColor = dotColor.copy(alpha = 0.14f),
             selectedLabelColor = MaterialTheme.colorScheme.onSurface,
         ),
         border = FilterChipDefaults.filterChipBorder(
             enabled = true,
             selected = selected,
-            selectedBorderColor = dotColor.copy(alpha = 0.7f),
-            borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+            selectedBorderColor = dotColor,
+            borderColor = tactile.cardOutline,
+            selectedBorderWidth = 1.5.dp,
         ),
         modifier = Modifier.testTag(testTag),
     )
@@ -289,17 +294,18 @@ private fun HighlightNoteCard(
     onClick: () -> Unit,
 ) {
     val motion = LocalKovaMotion.current
+    val tactile = LocalKovaTactileColors.current
     val accent = note.category.accentColor()
     val categoryLabel = note.category.displayLabel()
     val sharedKey = DetailDestination.NoteDetail(note.id).sharedBoundsKey
 
     with(sharedTransitionScope) {
-        KovaElevatedCard(
+        KovaTactileCard(
             shape = KovaExpressiveShapes.StatAndAssignmentCard,
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            accentGlowColor = accent,
-            borderColor = accent.copy(alpha = 0.55f),
-            elevation = 6.dp,
+            faceColor = tactile.cardFace,
+            lipColor = tactile.cardLip,
+            borderColor = tactile.cardOutline,
+            lipHeight = 4.dp,
             onClick = onClick,
             modifier = Modifier
                 .fillMaxWidth()
@@ -318,7 +324,7 @@ private fun HighlightNoteCard(
             ) {
                 Box(
                     modifier = Modifier
-                        .width(4.dp)
+                        .width(5.dp)
                         .height(74.dp)
                         .clip(CircleShape)
                         .background(accent),
@@ -335,9 +341,9 @@ private fun HighlightNoteCard(
                     ) {
                         KovaPillBadge(
                             text = categoryLabel.uppercase(),
-                            containerColor = accent.copy(alpha = 0.16f),
+                            containerColor = accent.copy(alpha = 0.14f),
                             contentColor = accent,
-                            borderColor = accent.copy(alpha = 0.45f),
+                            borderColor = accent.copy(alpha = 0.4f),
                         )
                         Text(
                             text = "Lesson ${note.lessonCode} · ${note.savedAtLabel}",
@@ -368,10 +374,14 @@ private fun HighlightNoteCard(
 
 @Composable
 private fun SpacedRepetitionTimerCard(item: SpacedRepetitionItem) {
-    KovaElevatedCard(
+    val tactile = LocalKovaTactileColors.current
+
+    KovaTactileCard(
         shape = KovaExpressiveShapes.StatAndAssignmentCard,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        elevation = 4.dp,
+        faceColor = tactile.cardFace,
+        lipColor = tactile.cardLip,
+        borderColor = tactile.cardOutline,
+        lipHeight = 4.dp,
         modifier = Modifier
             .fillMaxWidth()
             .testTag("sr_timer_card_${item.id}"),
@@ -385,14 +395,15 @@ private fun SpacedRepetitionTimerCard(item: SpacedRepetitionItem) {
         ) {
             Surface(
                 shape = KovaExpressiveShapes.LessonSquircleNode,
-                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                color = tactile.amberSoft,
+                border = BorderStroke(1.dp, tactile.amberFace.copy(alpha = 0.4f)),
                 modifier = Modifier.size(44.dp),
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = Icons.Outlined.Alarm,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.secondary,
+                        tint = tactile.amberLip,
                         modifier = Modifier.size(22.dp),
                     )
                 }
@@ -414,8 +425,9 @@ private fun SpacedRepetitionTimerCard(item: SpacedRepetitionItem) {
             }
             KovaPillBadge(
                 text = item.countdownLabel,
-                containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                containerColor = tactile.amberSoft,
+                contentColor = tactile.onAmberSoft,
+                borderColor = tactile.amberFace.copy(alpha = 0.45f),
             )
         }
     }
@@ -426,16 +438,19 @@ private fun RevisionQuotaSummaryCard(
     uiState: KovaUiState,
     onOpenChapter1Sheet: () -> Unit,
 ) {
-    KovaElevatedCard(
+    val tactile = LocalKovaTactileColors.current
+
+    KovaTactileCard(
         shape = KovaExpressiveShapes.HeroChapterCard,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        accentGlowColor = MaterialTheme.colorScheme.secondary,
-        elevation = 8.dp,
+        faceColor = tactile.cardFace,
+        lipColor = tactile.amberLip,
+        borderColor = tactile.amberFace.copy(alpha = 0.6f),
+        lipHeight = 5.dp,
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(
@@ -451,8 +466,9 @@ private fun RevisionQuotaSummaryCard(
                 KovaPillBadge(
                     text = "SR RESERVE: ${uiState.quota.spacedRepetitionReserve}",
                     leadingIcon = Icons.Outlined.Bolt,
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    containerColor = tactile.amberSoft,
+                    contentColor = tactile.onAmberSoft,
+                    borderColor = tactile.amberFace.copy(alpha = 0.45f),
                 )
             }
             Text(
@@ -460,29 +476,28 @@ private fun RevisionQuotaSummaryCard(
                 style = KovaCodeTextStyle,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Surface(
+
+            KovaTactileButton(
                 onClick = onOpenChapter1Sheet,
-                shape = KovaExpressiveShapes.Pill,
-                color = MaterialTheme.colorScheme.primaryContainer,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)),
+                faceColor = tactile.emeraldFace,
+                lipColor = tactile.emeraldLip,
+                contentColor = Color.White,
+                minHeight = 46.dp,
+                lipHeight = 4.dp,
+                modifier = Modifier.fillMaxWidth(),
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.AutoStories,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Text(
-                        text = "Open Chapter 1 Revision Sheet",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Outlined.AutoStories,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Open Chapter 1 Revision Sheet",
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                    color = Color.White,
+                )
             }
         }
     }
@@ -490,11 +505,11 @@ private fun RevisionQuotaSummaryCard(
 
 @Composable
 fun HighlightCategory.accentColor(): Color {
-    val semantic = LocalKovaSemanticColors.current
+    val tactile = LocalKovaTactileColors.current
     return when (this) {
-        HighlightCategory.KEY_IDEA -> semantic.keyIdea
-        HighlightCategory.CODE_RULE -> semantic.codeRule
-        HighlightCategory.ASK_AI -> semantic.askAi
+        HighlightCategory.KEY_IDEA -> tactile.keyIdea
+        HighlightCategory.CODE_RULE -> tactile.codeRule
+        HighlightCategory.ASK_AI -> tactile.askAi
     }
 }
 

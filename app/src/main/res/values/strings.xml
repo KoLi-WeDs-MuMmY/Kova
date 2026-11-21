@@ -60,13 +60,13 @@
     <!-- Settings Sheet -->
     <string name="settings_title">Appearance &amp; Developer Controls</string>
     <string name="settings_theme_mode">Surface Theme</string>
-    <string name="settings_theme_obsidian">Obsidian</string>
+    <string name="settings_theme_daylight">Daylight</string>
+    <string name="settings_theme_matte_dark">Matte Dark</string>
     <string name="settings_theme_amoled">AMOLED</string>
-    <string name="settings_theme_light">Light</string>
     <string name="settings_dynamic_color">Material You Dynamic Color</string>
     <string name="settings_dynamic_color_desc">Android 12+ wallpaper palette (preserves #000000 in AMOLED mode)</string>
-    <string name="settings_motion_title">Expressive Spring Motion</string>
-    <string name="settings_motion_desc">Toggle spring container transforms, pulsing halos, and shake feedback</string>
+    <string name="settings_motion_title">Tactile Spring Motion</string>
+    <string name="settings_motion_desc">Toggle 3D press physics, drop-down springs, and shake feedback</string>
     <string name="settings_dev_override">Dev Override: Unlock All &amp; Reset Daily Limit</string>
     <string name="settings_dev_override_desc">Unlock every lesson &amp; chapter freely and restore 3/3 daily quota</string>
     <string name="settings_reset_demo">Reset Phase 1 Mock Progress</string>

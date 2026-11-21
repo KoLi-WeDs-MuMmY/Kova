@@ -22,9 +22,9 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 enum class ThemeMode {
-    OBSIDIAN_DARK,
+    WARM_DAYLIGHT,
+    MATTE_DARK,
     AMOLED_BLACK,
-    LIGHT,
 }
 
 @Immutable
@@ -46,8 +46,33 @@ data class KovaMotionConfig(
         }
 }
 
+/**
+ * Tactile 3D game-board palette tokens with solid face + darker 3D lip pairs.
+ * Zero neon or glowing accents.
+ */
 @Immutable
-data class KovaSemanticColors(
+data class KovaTactileColors(
+    val cardFace: Color,
+    val cardOutline: Color,
+    val cardLip: Color,
+    val emeraldFace: Color,
+    val emeraldLip: Color,
+    val emeraldSoft: Color,
+    val onEmeraldSoft: Color,
+    val cobaltFace: Color,
+    val cobaltLip: Color,
+    val cobaltSoft: Color,
+    val onCobaltSoft: Color,
+    val amberFace: Color,
+    val amberLip: Color,
+    val amberSoft: Color,
+    val onAmberSoft: Color,
+    val stoneFace: Color,
+    val stoneLip: Color,
+    val stoneLabel: Color,
+    val ringTrack: Color,
+    val ringTrackBevel: Color,
+    val pathInactive: Color,
     val keyIdea: Color,
     val codeRule: Color,
     val askAi: Color,
@@ -56,133 +81,206 @@ data class KovaSemanticColors(
 )
 
 val LocalKovaMotion = staticCompositionLocalOf { KovaMotionConfig(enabled = true) }
-val LocalKovaSemanticColors = staticCompositionLocalOf {
-    KovaSemanticColors(
-        keyIdea = HighlightKeyIdeaDark,
-        codeRule = HighlightCodeRuleDark,
-        askAi = HighlightAskAiDark,
-        isDarkSurface = true,
-        isAmoled = false,
-    )
+
+val LocalKovaTactileColors = staticCompositionLocalOf {
+    WarmDaylightTactileColors
 }
 
-private val ObsidianDarkColorScheme = darkColorScheme(
-    primary = ElectricMint,
-    onPrimary = OnElectricMint,
-    primaryContainer = ElectricMintContainer,
-    onPrimaryContainer = OnElectricMintContainer,
-    secondary = WarmAmber,
-    onSecondary = OnWarmAmber,
-    secondaryContainer = WarmAmberContainer,
-    onSecondaryContainer = OnWarmAmberContainer,
-    tertiary = SoftCoralTertiary,
-    onTertiary = OnSoftCoralTertiary,
-    tertiaryContainer = SoftCoralContainer,
-    onTertiaryContainer = OnSoftCoralContainer,
-    background = ObsidianBackground,
-    onBackground = ObsidianTextPrimary,
-    surface = ObsidianSurface,
-    onSurface = ObsidianTextPrimary,
-    surfaceVariant = ObsidianSurfaceHigh,
-    onSurfaceVariant = ObsidianTextSecondary,
-    surfaceContainerLowest = ObsidianSurfaceLowest,
-    surfaceContainerLow = ObsidianSurfaceLow,
-    surfaceContainer = ObsidianSurface,
-    surfaceContainerHigh = ObsidianSurfaceHigh,
-    surfaceContainerHighest = ObsidianSurfaceHighest,
-    outline = ObsidianOutline,
-    outlineVariant = ObsidianOutlineVariant,
+private val WarmDaylightTactileColors = KovaTactileColors(
+    cardFace = WarmCardSurface,
+    cardOutline = WarmOutline,
+    cardLip = WarmCardLip,
+    emeraldFace = TactileEmerald,
+    emeraldLip = TactileEmeraldLip,
+    emeraldSoft = TactileEmeraldSoft,
+    onEmeraldSoft = TactileOnEmeraldSoft,
+    cobaltFace = TactileCobalt,
+    cobaltLip = TactileCobaltLip,
+    cobaltSoft = TactileCobaltSoft,
+    onCobaltSoft = TactileOnCobaltSoft,
+    amberFace = TactileAmber,
+    amberLip = TactileAmberLip,
+    amberSoft = TactileAmberSoft,
+    onAmberSoft = TactileOnAmberSoft,
+    stoneFace = TactileStone,
+    stoneLip = TactileStoneLip,
+    stoneLabel = TactileStoneLabel,
+    ringTrack = Color(0xFFEDE6D9),
+    ringTrackBevel = Color(0xFFD8CEBC),
+    pathInactive = Color(0xFFD7CEBF),
+    keyIdea = HighlightKeyIdeaDay,
+    codeRule = HighlightCodeRuleDay,
+    askAi = HighlightAskAiDay,
+    isDarkSurface = false,
+    isAmoled = false,
 )
 
-private val AmoledTrueBlackColorScheme = ObsidianDarkColorScheme.copy(
-    background = AmoledBackground,
-    surface = AmoledSurface,
+private val MatteDarkTactileColors = KovaTactileColors(
+    cardFace = MatteDarkCardSurface,
+    cardOutline = MatteDarkOutline,
+    cardLip = MatteDarkCardLip,
+    emeraldFace = TactileEmerald,
+    emeraldLip = TactileEmeraldLip,
+    emeraldSoft = MatteDarkEmeraldSoft,
+    onEmeraldSoft = MatteDarkOnEmeraldSoft,
+    cobaltFace = TactileCobalt,
+    cobaltLip = TactileCobaltLip,
+    cobaltSoft = MatteDarkCobaltSoft,
+    onCobaltSoft = MatteDarkOnCobaltSoft,
+    amberFace = TactileAmber,
+    amberLip = TactileAmberLip,
+    amberSoft = MatteDarkAmberSoft,
+    onAmberSoft = MatteDarkOnAmberSoft,
+    stoneFace = MatteDarkStone,
+    stoneLip = MatteDarkStoneLip,
+    stoneLabel = MatteDarkStoneLabel,
+    ringTrack = Color(0xFF332F2A),
+    ringTrackBevel = Color(0xFF1A1815),
+    pathInactive = Color(0xFF423D36),
+    keyIdea = HighlightKeyIdeaDark,
+    codeRule = HighlightCodeRuleDark,
+    askAi = HighlightAskAiDark,
+    isDarkSurface = true,
+    isAmoled = false,
+)
+
+private val AmoledTactileColors = MatteDarkTactileColors.copy(
+    cardFace = AmoledCardSurface,
+    cardOutline = AmoledOutline,
+    cardLip = AmoledCardLip,
+    stoneFace = Color(0xFF1C1C1C),
+    stoneLip = Color(0xFF0E0E0E),
+    ringTrack = Color(0xFF262626),
+    ringTrackBevel = Color(0xFF121212),
+    pathInactive = Color(0xFF333333),
+    isAmoled = true,
+)
+
+private val WarmDaylightColorScheme = lightColorScheme(
+    primary = TactileEmerald,
+    onPrimary = Color.White,
+    primaryContainer = TactileEmeraldSoft,
+    onPrimaryContainer = TactileOnEmeraldSoft,
+    secondary = TactileAmber,
+    onSecondary = Color(0xFF3B1F00),
+    secondaryContainer = TactileAmberSoft,
+    onSecondaryContainer = TactileOnAmberSoft,
+    tertiary = TactileCobalt,
+    onTertiary = Color.White,
+    tertiaryContainer = TactileCobaltSoft,
+    onTertiaryContainer = TactileOnCobaltSoft,
+    background = WarmIvoryBackground,
+    onBackground = WarmInkPrimary,
+    surface = WarmCardSurface,
+    onSurface = WarmInkPrimary,
+    surfaceVariant = WarmSurfaceHigh,
+    onSurfaceVariant = WarmInkSecondary,
+    surfaceContainerLowest = WarmCardSurface,
+    surfaceContainerLow = WarmSurfaceLow,
+    surfaceContainer = WarmSurfaceHigh,
+    surfaceContainerHigh = WarmCardSurface,
+    surfaceContainerHighest = WarmSurfaceHighest,
+    outline = WarmCardLip,
+    outlineVariant = WarmOutline,
+)
+
+private val MatteDarkColorScheme = darkColorScheme(
+    primary = TactileEmerald,
+    onPrimary = Color.White,
+    primaryContainer = MatteDarkEmeraldSoft,
+    onPrimaryContainer = MatteDarkOnEmeraldSoft,
+    secondary = TactileAmber,
+    onSecondary = Color(0xFF2D1600),
+    secondaryContainer = MatteDarkAmberSoft,
+    onSecondaryContainer = MatteDarkOnAmberSoft,
+    tertiary = TactileCobalt,
+    onTertiary = Color.White,
+    tertiaryContainer = MatteDarkCobaltSoft,
+    onTertiaryContainer = MatteDarkOnCobaltSoft,
+    background = MatteDarkBackground,
+    onBackground = MatteDarkInkPrimary,
+    surface = MatteDarkCardSurface,
+    onSurface = MatteDarkInkPrimary,
+    surfaceVariant = MatteDarkSurfaceHigh,
+    onSurfaceVariant = MatteDarkInkSecondary,
+    surfaceContainerLowest = MatteDarkSurfaceLow,
+    surfaceContainerLow = MatteDarkSurfaceLow,
+    surfaceContainer = MatteDarkCardSurface,
+    surfaceContainerHigh = MatteDarkSurfaceHigh,
+    surfaceContainerHighest = MatteDarkSurfaceHighest,
+    outline = Color(0xFF4F483E),
+    outlineVariant = MatteDarkOutline,
+)
+
+private val AmoledColorScheme = MatteDarkColorScheme.copy(
+    background = AmoledTrueBlackBackground,
+    surface = AmoledCardSurface,
     surfaceVariant = AmoledSurfaceHigh,
-    surfaceContainerLowest = AmoledSurfaceLowest,
+    surfaceContainerLowest = AmoledTrueBlackBackground,
     surfaceContainerLow = AmoledSurfaceLow,
-    surfaceContainer = AmoledSurface,
+    surfaceContainer = AmoledCardSurface,
     surfaceContainerHigh = AmoledSurfaceHigh,
     surfaceContainerHighest = AmoledSurfaceHighest,
-    outline = Color(0xFF334155),
-    outlineVariant = Color(0xFF1F2A3A),
-)
-
-private val DaylightLightColorScheme = lightColorScheme(
-    primary = LightEmeraldPrimary,
-    onPrimary = OnLightEmerald,
-    primaryContainer = LightEmeraldContainer,
-    onPrimaryContainer = OnLightEmeraldContainer,
-    secondary = LightAmberSecondary,
-    onSecondary = OnLightAmber,
-    secondaryContainer = LightAmberContainer,
-    onSecondaryContainer = OnLightAmberContainer,
-    tertiary = LightCoralTertiary,
-    onTertiary = OnLightCoral,
-    tertiaryContainer = LightCoralContainer,
-    onTertiaryContainer = OnLightCoralContainer,
-    background = LightBackground,
-    onBackground = LightTextPrimary,
-    surface = LightSurfaceLowest,
-    onSurface = LightTextPrimary,
-    surfaceVariant = LightSurfaceHigh,
-    onSurfaceVariant = LightTextSecondary,
-    surfaceContainerLowest = LightSurfaceLowest,
-    surfaceContainerLow = LightSurfaceLow,
-    surfaceContainer = LightSurface,
-    surfaceContainerHigh = LightSurfaceHigh,
-    surfaceContainerHighest = LightSurfaceHighest,
-    outline = LightOutline,
-    outlineVariant = LightOutlineVariant,
+    outline = Color(0xFF3D3D3D),
+    outlineVariant = AmoledOutline,
 )
 
 @Composable
 fun KovaTheme(
-    themeMode: ThemeMode = ThemeMode.OBSIDIAN_DARK,
+    themeMode: ThemeMode = ThemeMode.WARM_DAYLIGHT,
     dynamicColor: Boolean = false,
     expressiveMotionEnabled: Boolean = true,
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
-    val isDark = themeMode != ThemeMode.LIGHT
-    val isAmoled = themeMode == ThemeMode.AMOLED_BLACK
+    val isDark = themeMode != ThemeMode.WARM_DAYLIGHT
 
     val colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             when (themeMode) {
-                ThemeMode.LIGHT -> dynamicLightColorScheme(context)
-                ThemeMode.OBSIDIAN_DARK -> dynamicDarkColorScheme(context)
+                ThemeMode.WARM_DAYLIGHT -> dynamicLightColorScheme(context)
+                ThemeMode.MATTE_DARK -> dynamicDarkColorScheme(context)
                 ThemeMode.AMOLED_BLACK -> dynamicDarkColorScheme(context).copy(
-                    background = AmoledBackground,
-                    surface = AmoledSurface,
-                    surfaceContainerLowest = AmoledSurfaceLowest,
+                    background = AmoledTrueBlackBackground,
+                    surface = AmoledCardSurface,
+                    surfaceContainerLowest = AmoledTrueBlackBackground,
                     surfaceContainerLow = AmoledSurfaceLow,
-                    surfaceContainer = AmoledSurface,
+                    surfaceContainer = AmoledCardSurface,
                     surfaceContainerHigh = AmoledSurfaceHigh,
                     surfaceContainerHighest = AmoledSurfaceHighest,
                 )
             }
         }
-        themeMode == ThemeMode.AMOLED_BLACK -> AmoledTrueBlackColorScheme
-        themeMode == ThemeMode.OBSIDIAN_DARK -> ObsidianDarkColorScheme
-        else -> DaylightLightColorScheme
+        themeMode == ThemeMode.AMOLED_BLACK -> AmoledColorScheme
+        themeMode == ThemeMode.MATTE_DARK -> MatteDarkColorScheme
+        else -> WarmDaylightColorScheme
     }
 
-    val semanticColors = if (isDark) {
-        KovaSemanticColors(
-            keyIdea = HighlightKeyIdeaDark,
-            codeRule = HighlightCodeRuleDark,
-            askAi = HighlightAskAiDark,
-            isDarkSurface = true,
-            isAmoled = isAmoled,
+    val baseTactile = when (themeMode) {
+        ThemeMode.WARM_DAYLIGHT -> WarmDaylightTactileColors
+        ThemeMode.MATTE_DARK -> MatteDarkTactileColors
+        ThemeMode.AMOLED_BLACK -> AmoledTactileColors
+    }
+
+    val tactileColors = if (dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        baseTactile.copy(
+            cardFace = if (themeMode == ThemeMode.AMOLED_BLACK) AmoledCardSurface else colorScheme.surfaceContainerLowest,
+            cardOutline = colorScheme.outlineVariant,
+            emeraldFace = colorScheme.primary,
+            emeraldLip = darkenColor(colorScheme.primary, 0.22f),
+            emeraldSoft = colorScheme.primaryContainer,
+            onEmeraldSoft = colorScheme.onPrimaryContainer,
+            cobaltFace = colorScheme.tertiary,
+            cobaltLip = darkenColor(colorScheme.tertiary, 0.22f),
+            cobaltSoft = colorScheme.tertiaryContainer,
+            onCobaltSoft = colorScheme.onTertiaryContainer,
+            amberFace = colorScheme.secondary,
+            amberLip = darkenColor(colorScheme.secondary, 0.24f),
+            amberSoft = colorScheme.secondaryContainer,
+            onAmberSoft = colorScheme.onSecondaryContainer,
         )
     } else {
-        KovaSemanticColors(
-            keyIdea = HighlightKeyIdeaLight,
-            codeRule = HighlightCodeRuleLight,
-            askAi = HighlightAskAiLight,
-            isDarkSurface = false,
-            isAmoled = false,
-        )
+        baseTactile
     }
 
     val view = LocalView.current
@@ -199,7 +297,7 @@ fun KovaTheme(
 
     CompositionLocalProvider(
         LocalKovaMotion provides KovaMotionConfig(enabled = expressiveMotionEnabled),
-        LocalKovaSemanticColors provides semanticColors,
+        LocalKovaTactileColors provides tactileColors,
     ) {
         MaterialTheme(
             colorScheme = colorScheme,
@@ -208,4 +306,14 @@ fun KovaTheme(
             content = content,
         )
     }
+}
+
+private fun darkenColor(color: Color, factor: Float): Color {
+    val scale = (1f - factor).coerceIn(0f, 1f)
+    return Color(
+        red = color.red * scale,
+        green = color.green * scale,
+        blue = color.blue * scale,
+        alpha = color.alpha,
+    )
 }

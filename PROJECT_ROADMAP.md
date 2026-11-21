@@ -35,7 +35,18 @@ This document preserves the North Star vision, Phase 1 deliverable contract, and
 - **Lab, AI & Revision Skeletons + Developer Settings**:
   - Styled Phase 3 previews for the Virtual Folder/File Prompt Builder and Scoped Lesson Tutor + Quota pills.
   - Color-coded Highlighted Notes (`Yellow` = Key Idea, `Green` = Code Rule, `Pink` = Ask AI) with category filters and Spaced-Repetition timers.
-  - Developer Settings sheet with Theme Mode, Dynamic Color, Expressive Motion, and **Dev Override: Unlock All & Reset Daily Limit**.
+  - Developer Settings sheet with Theme Mode, Dynamic Color, Tactile Spring Motion, and **Dev Override: Unlock All & Reset Daily Limit**.
+
+## Part B.1: Phase 1.1 Visual & Interaction Overhaul (Implemented)
+
+- **Tactile Warm Game-Board Theme (Zero Neon / Glow)**:
+  - Defaults to **Warm Daylight** (`#FBF8F3` warm ivory canvas, `#FFFFFF` cards with `#E7DFD0` warm outlines), alongside **Warm Matte Dark** (`#171614`) and **AMOLED True Black** (`#000000`) plus optional Material You Dynamic Color.
+  - Accent pairs with solid `4.dp`–`6.dp` 3D bottom lips: Rich Emerald (`#16A34A` / `#15803D`) for completed/primary, Royal Cobalt (`#2563EB` / `#1D4ED8`) for active quests/chapters, Warm Amber (`#F59E0B` / `#B45309`) for assignments/streaks, and Stone (`#E5E7EB` / `#CBD5E1`, `#64748B` labels) for locked nodes.
+  - Physical downward spring press animations (`KovaTactileCard`, `KovaTactileButton`, `KovaTactileNodeCap`) with subtle native Android haptic ticks and zero neon drop-shadows or glowing rings.
+- **3D Circular Chapter Rings & Click-to-Drop-Down Lessons**:
+  - Tactile 3D Chapter Cards featuring thick beveled **3D Circular Progress Rings** framing chapter emblems that animate smoothly (`0% -> 25% -> 50% -> 75% -> 100%`).
+  - Clicking a Chapter Card toggles its dropped-down lesson trail using `AnimatedVisibility(expandVertically(spring(dampingRatio = 0.72f, stiffness = 320f)) + fadeIn())` (Chapter 1 starts expanded; Chapter 2 starts collapsed and can be tapped to peek at locked nodes and the amber gate banner).
+  - Preserves all ViewModel state, `MockLearningRepository` data, mastery gating, Learn↔Lab assignment sync, Dev Override, and shared-element `SharedTransitionLayout` transforms across all 4 tabs.
 
 ---
 

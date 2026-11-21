@@ -2,78 +2,88 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Dichrome Obsidian Dark Palette (Default)
-val ObsidianBackground = Color(0xFF0A0E14)
-val ObsidianSurfaceLowest = Color(0xFF0F141C)
-val ObsidianSurfaceLow = Color(0xFF151C26)
-val ObsidianSurface = Color(0xFF18202C)
-val ObsidianSurfaceHigh = Color(0xFF1C2533)
-val ObsidianSurfaceHighest = Color(0xFF243042)
+// =========================================================================
+// Warm Daylight Game-Board Palette (Default — Zero Neon / Glow)
+// =========================================================================
+val WarmIvoryBackground = Color(0xFFFBF8F3)
+val WarmCardSurface = Color(0xFFFFFFFF)
+val WarmSurfaceLow = Color(0xFFF6F1E8)
+val WarmSurfaceHigh = Color(0xFFFAF6EE)
+val WarmSurfaceHighest = Color(0xFFEFE8DC)
+val WarmOutline = Color(0xFFE7DFD0)
+val WarmCardLip = Color(0xFFDED4C2)
 
-// AMOLED True Black Palette
-val AmoledBackground = Color(0xFF000000)
-val AmoledSurfaceLowest = Color(0xFF000000)
-val AmoledSurfaceLow = Color(0xFF070A0F)
-val AmoledSurface = Color(0xFF0B0F17)
-val AmoledSurfaceHigh = Color(0xFF121824)
-val AmoledSurfaceHighest = Color(0xFF1B2434)
+val WarmInkPrimary = Color(0xFF1E293B)
+val WarmInkSecondary = Color(0xFF5B6472)
 
-// Primary & Secondary Dichrome Accents (Dark / AMOLED)
-val ElectricMint = Color(0xFF2EE59D)
-val OnElectricMint = Color(0xFF003822)
-val ElectricMintContainer = Color(0xFF0A4D33)
-val OnElectricMintContainer = Color(0xFF7CF8C3)
+// Rich Emerald — Primary / Completed Accent
+val TactileEmerald = Color(0xFF16A34A)
+val TactileEmeraldLip = Color(0xFF15803D)
+val TactileEmeraldSoft = Color(0xFFDCFCE7)
+val TactileOnEmeraldSoft = Color(0xFF14532D)
 
-val WarmAmber = Color(0xFFFFB84D)
-val OnWarmAmber = Color(0xFF3F2600)
-val WarmAmberContainer = Color(0xFF543506)
-val OnWarmAmberContainer = Color(0xFFFFDDA6)
+// Royal Cobalt — Active Quest / Chapter Accent
+val TactileCobalt = Color(0xFF2563EB)
+val TactileCobaltLip = Color(0xFF1D4ED8)
+val TactileCobaltSoft = Color(0xFFDBEAFE)
+val TactileOnCobaltSoft = Color(0xFF1E3A8A)
 
-val SoftCoralTertiary = Color(0xFFFF7AA8)
-val OnSoftCoralTertiary = Color(0xFF4A0A24)
-val SoftCoralContainer = Color(0xFF521831)
-val OnSoftCoralContainer = Color(0xFFFFD6E4)
+// Warm Amber — Assignments & Streaks Accent
+val TactileAmber = Color(0xFFF59E0B)
+val TactileAmberLip = Color(0xFFB45309)
+val TactileAmberSoft = Color(0xFFFEF3C7)
+val TactileOnAmberSoft = Color(0xFF78350F)
 
-// Dark Text & Outlines
-val ObsidianTextPrimary = Color(0xFFF1F5F9)
-val ObsidianTextSecondary = Color(0xFF94A3B8)
-val ObsidianOutline = Color(0xFF3B4A61)
-val ObsidianOutlineVariant = Color(0xFF2A3648)
+// Tactile Stone — Locked Nodes
+val TactileStone = Color(0xFFE5E7EB)
+val TactileStoneLip = Color(0xFFCBD5E1)
+val TactileStoneLabel = Color(0xFF64748B)
 
-// Daylight Light Mode Palette (High-contrast Dichrome Counterpart)
-val LightBackground = Color(0xFFF5F7FB)
-val LightSurfaceLowest = Color(0xFFFFFFFF)
-val LightSurfaceLow = Color(0xFFEEF2F7)
-val LightSurface = Color(0xFFE7EDF5)
-val LightSurfaceHigh = Color(0xFFDFE7F1)
-val LightSurfaceHighest = Color(0xFFD5E0EC)
+// Rose / Berry — Ask AI Highlight Accent
+val TactileRose = Color(0xFFE11D48)
+val TactileRoseSoft = Color(0xFFFFE4E6)
 
-val LightEmeraldPrimary = Color(0xFF00875A)
-val OnLightEmerald = Color(0xFFFFFFFF)
-val LightEmeraldContainer = Color(0xFFC5F7DF)
-val OnLightEmeraldContainer = Color(0xFF002919)
+// =========================================================================
+// Warm Matte Dark Palette (Secondary — Solid 3D Lips, Zero Neon)
+// =========================================================================
+val MatteDarkBackground = Color(0xFF171614)
+val MatteDarkCardSurface = Color(0xFF22201D)
+val MatteDarkSurfaceLow = Color(0xFF1D1B18)
+val MatteDarkSurfaceHigh = Color(0xFF2A2723)
+val MatteDarkSurfaceHighest = Color(0xFF332F2A)
+val MatteDarkOutline = Color(0xFF3A352E)
+val MatteDarkCardLip = Color(0xFF11100E)
 
-val LightAmberSecondary = Color(0xFFB36800)
-val OnLightAmber = Color(0xFFFFFFFF)
-val LightAmberContainer = Color(0xFFFFE5BD)
-val OnLightAmberContainer = Color(0xFF381F00)
+val MatteDarkInkPrimary = Color(0xFFF5F1EA)
+val MatteDarkInkSecondary = Color(0xFFA8A29E)
 
-val LightCoralTertiary = Color(0xFFC22D65)
-val OnLightCoral = Color(0xFFFFFFFF)
-val LightCoralContainer = Color(0xFFFFD8E6)
-val OnLightCoralContainer = Color(0xFF3E001C)
+val MatteDarkStone = Color(0xFF2D2B27)
+val MatteDarkStoneLip = Color(0xFF1C1A17)
+val MatteDarkStoneLabel = Color(0xFF9CA3AF)
 
-val LightTextPrimary = Color(0xFF0F172A)
-val LightTextSecondary = Color(0xFF475569)
-val LightOutline = Color(0xFF94A3B8)
-val LightOutlineVariant = Color(0xFFCBD5E1)
+val MatteDarkEmeraldSoft = Color(0xFF143522)
+val MatteDarkOnEmeraldSoft = Color(0xFF86EFAC)
+val MatteDarkCobaltSoft = Color(0xFF172B4D)
+val MatteDarkOnCobaltSoft = Color(0xFF93C5FD)
+val MatteDarkAmberSoft = Color(0xFF3F2A0B)
+val MatteDarkOnAmberSoft = Color(0xFFFCD34D)
 
-// Semantic Highlight Colors (Revision Notes)
-val HighlightKeyIdeaDark = Color(0xFFFACC15)
-val HighlightKeyIdeaLight = Color(0xFFB45309)
+// =========================================================================
+// AMOLED True Black Palette (Secondary — Pure #000000, Solid 3D Lips, Zero Neon)
+// =========================================================================
+val AmoledTrueBlackBackground = Color(0xFF000000)
+val AmoledCardSurface = Color(0xFF121212)
+val AmoledSurfaceLow = Color(0xFF0A0A0A)
+val AmoledSurfaceHigh = Color(0xFF1A1A1A)
+val AmoledSurfaceHighest = Color(0xFF242424)
+val AmoledOutline = Color(0xFF2C2C2C)
+val AmoledCardLip = Color(0xFF202020)
 
-val HighlightCodeRuleDark = Color(0xFF2EE59D)
-val HighlightCodeRuleLight = Color(0xFF047857)
+// Highlight Semantic Colors
+val HighlightKeyIdeaDay = Color(0xFFD97706)
+val HighlightCodeRuleDay = Color(0xFF15803D)
+val HighlightAskAiDay = Color(0xFFE11D48)
 
-val HighlightAskAiDark = Color(0xFFFF72B6)
-val HighlightAskAiLight = Color(0xFFBE185D)
+val HighlightKeyIdeaDark = Color(0xFFF59E0B)
+val HighlightCodeRuleDark = Color(0xFF22C55E)
+val HighlightAskAiDark = Color(0xFFFB7185)

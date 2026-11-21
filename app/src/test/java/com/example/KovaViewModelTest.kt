@@ -12,6 +12,27 @@ import org.junit.Test
 class KovaViewModelTest {
 
     @Test
+    fun defaultsToWarmDaylightWithChapter1ExpandedOnly() {
+        val vm = KovaViewModel()
+        val state = vm.uiState.value
+
+        assertEquals(ThemeMode.WARM_DAYLIGHT, state.themeMode)
+        assertTrue("ch_1" in state.expandedChapterIds)
+        assertFalse("ch_2" in state.expandedChapterIds)
+    }
+
+    @Test
+    fun togglingChapterDropDownUpdatesExpandedSet() {
+        val vm = KovaViewModel()
+
+        vm.toggleChapterExpanded("ch_2")
+        assertTrue("ch_2" in vm.uiState.value.expandedChapterIds)
+
+        vm.toggleChapterExpanded("ch_1")
+        assertFalse("ch_1" in vm.uiState.value.expandedChapterIds)
+    }
+
+    @Test
     fun passingLessonsUnlocksNextLessonAndDecrementsDailyQuota() {
         val vm = KovaViewModel()
         assertEquals(3, vm.uiState.value.quota.dailyLessonsRemaining)
@@ -30,7 +51,6 @@ class KovaViewModelTest {
         val vm = KovaViewModel()
         vm.setDevUnlockAllOverride(false)
 
-        // Complete all 4 Chapter 1 lessons
         vm.passLessonMockTest("l_1_1")
         vm.passLessonMockTest("l_1_2")
         vm.passLessonMockTest("l_1_3")
@@ -42,13 +62,13 @@ class KovaViewModelTest {
         assertFalse(ch1.assignment.isCompleted)
         assertFalse(ch2Before.isUnlocked)
 
-        // Complete Chapter 1 Assignment (synced across Learn & Lab)
         vm.completeAssignment("asg_ch_1")
 
         val ch1After = vm.uiState.value.findChapter("ch_1")!!
         val ch2After = vm.uiState.value.findChapter("ch_2")!!
         assertTrue(ch1After.assignment.isCompleted)
         assertTrue(ch2After.isUnlocked)
+        assertTrue("ch_2" in vm.uiState.value.expandedChapterIds)
         assertEquals(LessonStatus.UNLOCKED, ch2After.lessons.first().status)
     }
 
@@ -68,6 +88,9 @@ class KovaViewModelTest {
     @Test
     fun themeModeMotionAndHighlightFiltersUpdateState() {
         val vm = KovaViewModel()
+        vm.setThemeMode(ThemeMode.MATTE_DARK)
+        assertEquals(ThemeMode.MATTE_DARK, vm.uiState.value.themeMode)
+
         vm.setThemeMode(ThemeMode.AMOLED_BLACK)
         vm.setDynamicColorEnabled(true)
         vm.setExpressiveMotionEnabled(false)

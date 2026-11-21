@@ -1,7 +1,6 @@
 package com.example.ui.components
 
 import android.os.Build
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -27,7 +26,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -36,6 +34,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -45,6 +44,7 @@ import com.example.R
 import com.example.model.KovaUiState
 import com.example.ui.theme.KovaCodeTextStyle
 import com.example.ui.theme.KovaExpressiveShapes
+import com.example.ui.theme.LocalKovaTactileColors
 import com.example.ui.theme.ThemeMode
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -59,11 +59,12 @@ fun DeveloperSettingsSheet(
     onResetProgress: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val tactile = LocalKovaTactileColors.current
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        containerColor = MaterialTheme.colorScheme.background,
         shape = KovaExpressiveShapes.HeroChapterCard,
     ) {
         Column(
@@ -84,41 +85,52 @@ fun DeveloperSettingsSheet(
                     Text(
                         text = stringResource(R.string.settings_title),
                         style = MaterialTheme.typography.headlineSmall,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = MaterialTheme.colorScheme.onBackground,
                     )
                     Text(
-                        text = "Phase 1 Theme, Expressive Motion & Testing Controls",
+                        text = "Phase 1.1 Tactile Theme, Motion & Testing Controls",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 KovaPillBadge(
-                    text = "PHASE 1",
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    text = "PHASE 1.1",
+                    containerColor = tactile.cobaltSoft,
+                    contentColor = tactile.onCobaltSoft,
+                    borderColor = tactile.cobaltFace.copy(alpha = 0.35f),
                 )
             }
 
-            // Surface Theme Selector (Obsidian Dark, AMOLED True Black, Light)
+            // Surface Theme Selector (Warm Daylight, Warm Matte Dark, AMOLED True Black)
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
                     text = stringResource(R.string.settings_theme_mode),
                     style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = MaterialTheme.colorScheme.onBackground,
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     ThemeModeChip(
-                        label = stringResource(R.string.settings_theme_obsidian),
-                        hexTag = "#0A0E14",
-                        icon = Icons.Outlined.DarkMode,
-                        selected = uiState.themeMode == ThemeMode.OBSIDIAN_DARK,
-                        onClick = { onThemeModeSelected(ThemeMode.OBSIDIAN_DARK) },
+                        label = stringResource(R.string.settings_theme_daylight),
+                        hexTag = "#FBF8F3",
+                        icon = Icons.Outlined.LightMode,
+                        selected = uiState.themeMode == ThemeMode.WARM_DAYLIGHT,
+                        onClick = { onThemeModeSelected(ThemeMode.WARM_DAYLIGHT) },
                         modifier = Modifier
                             .weight(1f)
-                            .testTag("theme_mode_obsidian"),
+                            .testTag("theme_mode_daylight"),
+                    )
+                    ThemeModeChip(
+                        label = stringResource(R.string.settings_theme_matte_dark),
+                        hexTag = "#171614",
+                        icon = Icons.Outlined.DarkMode,
+                        selected = uiState.themeMode == ThemeMode.MATTE_DARK,
+                        onClick = { onThemeModeSelected(ThemeMode.MATTE_DARK) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("theme_mode_matte_dark"),
                     )
                     ThemeModeChip(
                         label = stringResource(R.string.settings_theme_amoled),
@@ -130,22 +142,11 @@ fun DeveloperSettingsSheet(
                             .weight(1f)
                             .testTag("theme_mode_amoled"),
                     )
-                    ThemeModeChip(
-                        label = stringResource(R.string.settings_theme_light),
-                        hexTag = "#F5F7FB",
-                        icon = Icons.Outlined.LightMode,
-                        selected = uiState.themeMode == ThemeMode.LIGHT,
-                        onClick = { onThemeModeSelected(ThemeMode.LIGHT) },
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("theme_mode_light"),
-                    )
                 }
             }
 
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+            HorizontalDivider(color = tactile.cardOutline)
 
-            // Dynamic Color Toggle
             val supportsDynamic = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
             SettingsToggleRow(
                 icon = Icons.Outlined.Palette,
@@ -153,7 +154,7 @@ fun DeveloperSettingsSheet(
                 subtitle = if (supportsDynamic) {
                     stringResource(R.string.settings_dynamic_color_desc)
                 } else {
-                    "Requires Android 12+ (currently using Dichrome theme)"
+                    "Requires Android 12+ (currently using Warm Tactile theme)"
                 },
                 checked = uiState.dynamicColorEnabled,
                 enabled = supportsDynamic,
@@ -161,7 +162,6 @@ fun DeveloperSettingsSheet(
                 testTag = "toggle_dynamic_color",
             )
 
-            // Expressive Motion Toggle (With Motion / Without Motion)
             SettingsToggleRow(
                 icon = Icons.Outlined.Animation,
                 title = stringResource(R.string.settings_motion_title),
@@ -172,18 +172,15 @@ fun DeveloperSettingsSheet(
                 testTag = "toggle_expressive_motion",
             )
 
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+            HorizontalDivider(color = tactile.cardOutline)
 
-            // Dev Override Highlighted Card
-            KovaElevatedCard(
+            // Dev Override Tactile 3D Card
+            KovaTactileCard(
                 shape = KovaExpressiveShapes.StatAndAssignmentCard,
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                accentGlowColor = if (uiState.devUnlockAllOverride) {
-                    MaterialTheme.colorScheme.secondary
-                } else {
-                    null
-                },
-                elevation = 4.dp,
+                faceColor = if (uiState.devUnlockAllOverride) tactile.amberSoft else tactile.cardFace,
+                lipColor = if (uiState.devUnlockAllOverride) tactile.amberLip else tactile.cardLip,
+                borderColor = if (uiState.devUnlockAllOverride) tactile.amberFace else tactile.cardOutline,
+                lipHeight = 4.dp,
             ) {
                 Row(
                     modifier = Modifier
@@ -194,8 +191,9 @@ fun DeveloperSettingsSheet(
                     KovaScallopedSealBadge(
                         icon = Icons.Outlined.DeveloperMode,
                         contentDescription = null,
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        containerColor = tactile.amberFace,
+                        lipColor = tactile.amberLip,
+                        contentColor = Color.White,
                         size = 42.dp,
                         iconSize = 20.dp,
                     )
@@ -218,30 +216,38 @@ fun DeveloperSettingsSheet(
                         checked = uiState.devUnlockAllOverride,
                         onCheckedChange = onDevOverrideChanged,
                         colors = SwitchDefaults.colors(
-                            checkedThumbColor = MaterialTheme.colorScheme.onSecondary,
-                            checkedTrackColor = MaterialTheme.colorScheme.secondary,
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = tactile.amberFace,
                         ),
                         modifier = Modifier.testTag("toggle_dev_override"),
                     )
                 }
             }
 
-            OutlinedButton(
+            KovaTactileButton(
                 onClick = onResetProgress,
-                shape = KovaExpressiveShapes.Pill,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                faceColor = tactile.cardFace,
+                lipColor = tactile.cardLip,
+                borderColor = tactile.cardOutline,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                minHeight = 48.dp,
+                lipHeight = 4.dp,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(48.dp)
                     .testTag("reset_mock_progress_button"),
             ) {
                 Icon(
                     imageVector = Icons.Outlined.RestartAlt,
                     contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.size(18.dp),
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(text = stringResource(R.string.settings_reset_demo))
+                Text(
+                    text = stringResource(R.string.settings_reset_demo),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
             }
         }
     }
@@ -256,49 +262,44 @@ private fun ThemeModeChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val container = if (selected) {
-        MaterialTheme.colorScheme.primaryContainer
-    } else {
-        MaterialTheme.colorScheme.surfaceContainerHigh
-    }
-    val content = if (selected) {
-        MaterialTheme.colorScheme.onPrimaryContainer
-    } else {
-        MaterialTheme.colorScheme.onSurface
-    }
-    val border = if (selected) {
-        MaterialTheme.colorScheme.primary
-    } else {
-        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
-    }
+    val tactile = LocalKovaTactileColors.current
+    val face = if (selected) tactile.cobaltFace else tactile.cardFace
+    val lip = if (selected) tactile.cobaltLip else tactile.cardLip
+    val border = if (selected) tactile.cobaltLip else tactile.cardOutline
+    val contentColor = if (selected) Color.White else MaterialTheme.colorScheme.onSurface
 
-    Surface(
-        onClick = onClick,
+    KovaTactileCard(
         shape = KovaExpressiveShapes.StatAndAssignmentCard,
-        color = container,
-        border = BorderStroke(if (selected) 1.5.dp else 1.dp, border),
+        faceColor = face,
+        lipColor = lip,
+        borderColor = border,
+        lipHeight = 4.dp,
+        onClick = onClick,
         modifier = modifier,
     ) {
         Column(
-            modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 11.dp, horizontal = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = content,
+                tint = contentColor,
                 modifier = Modifier.size(20.dp),
             )
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelLarge,
-                color = content,
+                color = contentColor,
+                maxLines = 1,
             )
             Text(
                 text = hexTag,
                 style = KovaCodeTextStyle.copy(fontWeight = FontWeight.Normal),
-                color = content.copy(alpha = 0.78f),
+                color = contentColor.copy(alpha = 0.85f),
             )
         }
     }
@@ -314,13 +315,15 @@ private fun SettingsToggleRow(
     onCheckedChange: (Boolean) -> Unit,
     testTag: String,
 ) {
+    val tactile = LocalKovaTactileColors.current
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Surface(
             shape = KovaExpressiveShapes.LessonSquircleNode,
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            color = tactile.cobaltSoft,
             modifier = Modifier.size(40.dp),
         ) {
             Row(
@@ -330,7 +333,7 @@ private fun SettingsToggleRow(
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = tactile.cobaltFace,
                     modifier = Modifier.size(20.dp),
                 )
             }
@@ -340,7 +343,7 @@ private fun SettingsToggleRow(
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = MaterialTheme.colorScheme.onBackground,
             )
             Text(
                 text = subtitle,
@@ -353,6 +356,10 @@ private fun SettingsToggleRow(
             checked = checked,
             enabled = enabled,
             onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Color.White,
+                checkedTrackColor = tactile.emeraldFace,
+            ),
             modifier = Modifier.testTag(testTag),
         )
     }
