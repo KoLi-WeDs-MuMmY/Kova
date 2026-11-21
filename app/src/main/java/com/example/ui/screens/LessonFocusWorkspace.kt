@@ -146,7 +146,7 @@ fun LessonFocusWorkspace(
                     isCompleted = isCompleted,
                     splitRatio = splitRatio,
                     onCycleSplitRatio = {
-                        feedback.tap(view)
+                        feedback.splitTick(view)
                         onCycleSplitRatio()
                     },
                     onClose = {
@@ -193,7 +193,7 @@ fun LessonFocusWorkspace(
                     isCompleted = isCompleted,
                     splitRatio = splitRatio,
                     onCycleSplitRatio = {
-                        feedback.tap(view)
+                        feedback.splitTick(view)
                         onCycleSplitRatio()
                     },
                     onClose = {

@@ -265,6 +265,10 @@ data class KovaUiState(
     val flashcardSprint: FlashcardSprintState = FlashcardSprintState(),
     val quota: QuotaState = QuotaState(dailyLessonsRemaining = 3),
     val activeDetail: DetailDestination? = null,
+    val focusedChapterId: String? = null,
+    val isChapterAiSheetOpen: Boolean = false,
+    val isFlashcardFocusStageOpen: Boolean = false,
+    val isAiHistoryVisible: Boolean? = null,
     val lessonSplitRatio: LessonSplitRatio = LessonSplitRatio.RATIO_75_25,
     val newlyCompletedLessonInSession: String? = null,
     val lessonReturnEvent: LessonReturnEvent? = null,
@@ -280,6 +284,15 @@ data class KovaUiState(
 ) {
     val isLessonFocusMode: Boolean
         get() = activeDetail is DetailDestination.LessonDetail
+
+    val isChapterFocusMode: Boolean
+        get() = selectedTab == KovaTab.LEARN && focusedChapterId != null
+
+    val isGlobalChromeHidden: Boolean
+        get() = isLessonFocusMode || isChapterFocusMode || isFlashcardFocusStageOpen
+
+    val focusedChapter: Chapter?
+        get() = focusedChapterId?.let { id -> chapters.firstOrNull { it.id == id } }
 
     val activeLesson: Lesson?
         get() {

@@ -69,6 +69,10 @@ class KovaViewModel(
     private val vmScope = CoroutineScope(SupervisorJob() + workDispatcher)
     private var sprintTimerJob: Job? = null
 
+    // Optimistic per-thread message buffer ensuring Room emissions can NEVER drop newly sent messages
+    private val pendingLock = Any()
+    private val pendingMessagesByThread = mutableMapOf<String, LinkedHashMap<String, ChatMessage>>()
+
     private val _uiState = MutableStateFlow(createInitialState())
     val uiState: StateFlow<KovaUiState> = _uiState.asStateFlow()
 
@@ -83,7 +87,6 @@ class KovaViewModel(
         vmScope.launch {
             persistence.chatThreads.collect { threads ->
                 if (threads.isEmpty() && _uiState.value.chatThreads.isNotEmpty()) {
-                    // Wait for seed/write rather than flashing empty if optimistic thread exists
                     return@collect
                 }
                 _uiState.update { state ->
@@ -111,19 +114,15 @@ class KovaViewModel(
                         persistence.observeMessages(threadId).map { msgs -> Pair(threadId, msgs) }
                     }
                 }
-                .collect { (threadId, messages) ->
+                .collect { (threadId, persistedMessages) ->
                     _uiState.update { state ->
                         if (threadId == null) {
                             state.copy(activeThreadMessages = emptyList())
-                        } else if (
-                            messages.isEmpty() &&
-                            state.activeThreadId == threadId &&
-                            state.activeThreadMessages.any { it.threadId == threadId }
-                        ) {
-                            // Keep optimistic messages until Room finishes committing the insert
+                        } else if (state.activeThreadId != threadId) {
                             state
                         } else {
-                            state.copy(activeThreadMessages = messages)
+                            val merged = mergeWithPendingMessages(threadId, persistedMessages)
+                            state.copy(activeThreadMessages = merged)
                         }
                     }
                 }
@@ -157,6 +156,35 @@ class KovaViewModel(
         persistSnapshot(_uiState.value)
         vmScope.cancel()
         super.onCleared()
+    }
+
+    private fun recordPendingMessages(threadId: String, messages: List<ChatMessage>) {
+        synchronized(pendingLock) {
+            val map = pendingMessagesByThread.getOrPut(threadId) { LinkedHashMap() }
+            messages.forEach { map[it.id] = it }
+        }
+    }
+
+    private fun mergeWithPendingMessages(
+        threadId: String,
+        persistedMessages: List<ChatMessage>,
+    ): List<ChatMessage> {
+        synchronized(pendingLock) {
+            val persistedIds = persistedMessages.mapTo(HashSet()) { it.id }
+            val pendingMap = pendingMessagesByThread[threadId]
+            if (pendingMap != null) {
+                persistedIds.forEach { pendingMap.remove(it) }
+                if (pendingMap.isEmpty()) {
+                    pendingMessagesByThread.remove(threadId)
+                }
+            }
+            val remainingPending = pendingMap?.values?.toList().orEmpty()
+            return if (remainingPending.isEmpty()) {
+                persistedMessages
+            } else {
+                (persistedMessages + remainingPending).sortedBy { it.createdAtMillis }
+            }
+        }
     }
 
     private fun createInitialState(): KovaUiState {
@@ -334,7 +362,13 @@ class KovaViewModel(
             pauseFlashcardSprint()
         }
         _uiState.update { state ->
-            state.copy(selectedTab = tab, activeDetail = null)
+            state.copy(
+                selectedTab = tab,
+                activeDetail = null,
+                focusedChapterId = if (tab == KovaTab.LEARN) state.focusedChapterId else null,
+                isChapterAiSheetOpen = false,
+                isFlashcardFocusStageOpen = false,
+            )
         }
     }
 
@@ -348,6 +382,57 @@ class KovaViewModel(
             state.copy(expandedChapterIds = updated)
         }
         persistSnapshot()
+    }
+
+    fun openChapterFocus(chapterId: String) {
+        _uiState.update { state ->
+            state.copy(
+                selectedTab = KovaTab.LEARN,
+                focusedChapterId = chapterId,
+                expandedChapterIds = state.expandedChapterIds + chapterId,
+                isChapterAiSheetOpen = false,
+            )
+        }
+        persistSnapshot()
+    }
+
+    fun closeChapterFocus() {
+        _uiState.update { state ->
+            state.copy(
+                focusedChapterId = null,
+                isChapterAiSheetOpen = false,
+            )
+        }
+    }
+
+    fun setChapterAiSheetOpen(open: Boolean) {
+        _uiState.update { state ->
+            state.copy(isChapterAiSheetOpen = open)
+        }
+    }
+
+    fun switchFromChapterFocusToAiTab() {
+        _uiState.update { state ->
+            state.copy(
+                isChapterAiSheetOpen = false,
+                focusedChapterId = null,
+                activeDetail = null,
+                selectedTab = KovaTab.AI,
+            )
+        }
+    }
+
+    fun toggleAiHistoryVisibility(isWideTabletLayout: Boolean) {
+        _uiState.update { state ->
+            val currentlyVisible = state.isAiHistoryVisible ?: isWideTabletLayout
+            state.copy(isAiHistoryVisible = !currentlyVisible)
+        }
+    }
+
+    fun setAiHistoryVisibility(visible: Boolean) {
+        _uiState.update { state ->
+            state.copy(isAiHistoryVisible = visible)
+        }
     }
 
     fun openLesson(lessonId: String) {
@@ -612,6 +697,7 @@ class KovaViewModel(
             createdAtMillis = now,
         )
 
+        recordPendingMessages(threadId, listOf(welcomeMessage))
         _uiState.update { current ->
             current.copy(
                 chatThreads = listOf(newThread) + current.chatThreads.filterNot { it.id == threadId },
@@ -621,7 +707,7 @@ class KovaViewModel(
         }
         persistSnapshot()
         vmScope.launch {
-            persistence.appendMessage(newThread, welcomeMessage)
+            persistence.appendMessages(newThread, listOf(welcomeMessage))
         }
     }
 
@@ -643,6 +729,9 @@ class KovaViewModel(
     }
 
     fun deleteChatThread(threadId: String) {
+        synchronized(pendingLock) {
+            pendingMessagesByThread.remove(threadId)
+        }
         vmScope.launch {
             persistence.deleteThread(threadId)
         }
@@ -681,14 +770,17 @@ class KovaViewModel(
 
     /**
      * Immediately appends the user's message bubble + a subtle Phase 3 local status note
-     * to the active thread, clears the composer, and persists both to Room + disk snapshot.
+     * to the active thread's StateFlow (single source of truth), records them in the pending
+     * optimistic buffer so stale Room snapshots never overwrite them, clears the composer,
+     * and persists both atomically in a single Room @Transaction + disk snapshot.
      */
     fun sendChatMessage() {
         val state = _uiState.value
         val prompt = state.chatComposerText.trim()
         if (prompt.isEmpty()) return
 
-        val now = System.currentTimeMillis()
+        val lastTs = state.activeThreadMessages.maxOfOrNull { it.createdAtMillis } ?: 0L
+        val now = maxOf(System.currentTimeMillis(), lastTs + 2L)
         val timeLabel = formatClockTime(now)
         val activeLesson = state.activeLesson
         val currentThread = state.activeThread ?: ChatThread(
@@ -720,14 +812,17 @@ class KovaViewModel(
                 "Live Gemini replies activate in Phase 3 — your message is saved locally",
             savedNoteId = null,
             timestampLabel = timeLabel,
-            createdAtMillis = now + 1,
+            createdAtMillis = now + 1L,
         )
 
         val updatedThread = currentThread.copy(
             updatedAtLabel = timeLabel,
-            updatedAtMillis = now + 1,
+            updatedAtMillis = now + 1L,
             previewSnippet = prompt.take(90),
         )
+
+        val newBatch = listOf(userMsg, phase3StatusMsg)
+        recordPendingMessages(updatedThread.id, newBatch)
 
         _uiState.update { current ->
             val updatedThreads = (listOf(updatedThread) + current.chatThreads.filterNot { it.id == updatedThread.id })
@@ -740,7 +835,7 @@ class KovaViewModel(
             current.copy(
                 chatThreads = updatedThreads,
                 activeThreadId = updatedThread.id,
-                activeThreadMessages = baseMessages + userMsg + phase3StatusMsg,
+                activeThreadMessages = baseMessages + newBatch,
                 chatComposerText = "",
                 quota = current.quota.copy(
                     activeAiPoolRemaining = (current.quota.activeAiPoolRemaining - 1).coerceAtLeast(0),
@@ -751,8 +846,7 @@ class KovaViewModel(
         persistSnapshot()
 
         vmScope.launch {
-            persistence.appendMessage(updatedThread, userMsg)
-            persistence.appendMessage(updatedThread, phase3StatusMsg)
+            persistence.appendMessages(updatedThread, newBatch)
         }
     }
 
@@ -834,9 +928,28 @@ class KovaViewModel(
             it.copy(
                 selectedTab = KovaTab.REVISION,
                 selectedBinderTab = RevisionBinderTab.FLASHCARDS,
+                isFlashcardFocusStageOpen = true,
             )
         }
         restartFlashcardSprint(autoStart = true)
+    }
+
+    fun openFlashcardFocusStage() {
+        _uiState.update {
+            it.copy(
+                selectedTab = KovaTab.REVISION,
+                selectedBinderTab = RevisionBinderTab.FLASHCARDS,
+                isFlashcardFocusStageOpen = true,
+            )
+        }
+        startOrResumeFlashcardSprint()
+    }
+
+    fun closeFlashcardFocusStage() {
+        if (_uiState.value.flashcardSprint.isRunning) {
+            pauseFlashcardSprint()
+        }
+        _uiState.update { it.copy(isFlashcardFocusStageOpen = false) }
     }
 
     fun startOrResumeFlashcardSprint() {
@@ -1100,6 +1213,9 @@ class KovaViewModel(
     fun resetDemoProgress() {
         sprintTimerJob?.cancel()
         sprintTimerJob = null
+        synchronized(pendingLock) {
+            pendingMessagesByThread.clear()
+        }
         vmScope.launch {
             persistence.resetAll(repository)
         }

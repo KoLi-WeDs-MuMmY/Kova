@@ -1,19 +1,28 @@
 package com.example.ui.screens
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
@@ -28,13 +37,18 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Check
@@ -57,6 +71,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
@@ -81,6 +97,7 @@ import com.example.model.LessonStatus
 import com.example.ui.components.Kova3DChapterRing
 import com.example.ui.components.Kova3DGoldenTrophyPedestal
 import com.example.ui.components.Kova3DQuestPedestal
+import com.example.ui.components.KovaAiEmblem
 import com.example.ui.components.KovaPillBadge
 import com.example.ui.components.KovaScallopedSealBadge
 import com.example.ui.components.KovaTactileButton
@@ -99,9 +116,12 @@ import kotlinx.coroutines.delay
 fun LearnScreen(
     uiState: KovaUiState,
     isWideTabletLayout: Boolean,
+    isCompactFloating: Boolean,
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope,
-    onToggleChapterExpanded: (String) -> Unit,
+    onOpenChapterFocus: (String) -> Unit,
+    onCloseChapterFocus: () -> Unit,
+    onOpenChapterAiSheet: () -> Unit,
     onLessonClick: (String) -> Unit,
     onAssignmentClick: (String) -> Unit,
     onRevisionSheetClick: (String) -> Unit,
@@ -112,7 +132,7 @@ fun LearnScreen(
     val feedback = LocalKovaFeedback.current
     val view = LocalView.current
 
-    // Trigger celebratory chime on returning from a newly completed lesson
+    // Trigger celebratory arpeggio on returning from a newly completed lesson
     LaunchedEffect(uiState.lessonReturnEvent?.nonce) {
         val event = uiState.lessonReturnEvent
         if (event != null && event.wasNewlyCompleted) {
@@ -121,7 +141,7 @@ fun LearnScreen(
         }
     }
 
-    // Staggered spring entrance animation for surrounding chrome / telemetry on exit-from-lesson return
+    // Staggered spring entrance animation on exit-from-lesson return
     val returnReveal = remember { Animatable(1f) }
     LaunchedEffect(uiState.lessonReturnEvent?.nonce, motion.enabled) {
         if (uiState.lessonReturnEvent != null && motion.enabled) {
@@ -130,64 +150,102 @@ fun LearnScreen(
         }
     }
 
-    if (isWideTabletLayout) {
-        Row(
-            modifier = modifier
-                .fillMaxSize()
-                .padding(horizontal = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(20.dp),
-        ) {
-            LearnChaptersColumn(
+    AnimatedContent(
+        targetState = uiState.focusedChapter,
+        transitionSpec = {
+            if (motion.enabled) {
+                (fadeIn(tween(220)) + scaleIn(
+                    initialScale = 0.96f,
+                    animationSpec = spring(dampingRatio = 0.76f, stiffness = 340f),
+                )).togetherWith(fadeOut(tween(160)))
+            } else {
+                fadeIn(snap()) togetherWith fadeOut(snap())
+            }
+        },
+        modifier = modifier.fillMaxSize(),
+        label = "learn_overview_to_chapter_focus",
+    ) { focusedChapter ->
+        if (focusedChapter != null) {
+            ChapterFocusView(
+                chapter = focusedChapter,
                 uiState = uiState,
+                isCompactFloating = isCompactFloating,
                 returnRevealProgress = returnReveal.value,
                 sharedTransitionScope = sharedTransitionScope,
                 animatedVisibilityScope = animatedVisibilityScope,
-                onToggleChapterExpanded = onToggleChapterExpanded,
+                onBackToOverview = {
+                    feedback.tap(view)
+                    onCloseChapterFocus()
+                },
+                onOpenChapterAiSheet = {
+                    feedback.tap(view)
+                    onOpenChapterAiSheet()
+                },
                 onLessonClick = onLessonClick,
                 onAssignmentClick = onAssignmentClick,
-                onRevisionSheetClick = onRevisionSheetClick,
-                modifier = Modifier.weight(1.35f),
+                onRevisionSheetClick = { onRevisionSheetClick(focusedChapter.id) },
             )
-            TabletLearnSidePane(
-                uiState = uiState,
-                primaryChapter = primaryChapter,
-                returnRevealProgress = returnReveal.value,
-                onLessonClick = onLessonClick,
-                onAssignmentClick = onAssignmentClick,
-                onRevisionSheetClick = onRevisionSheetClick,
-                modifier = Modifier
-                    .weight(0.85f)
-                    .fillMaxHeight()
-                    .padding(top = 8.dp, bottom = 20.dp),
-            )
+        } else {
+            if (isWideTabletLayout) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(20.dp),
+                ) {
+                    LearnChapterOverviewColumn(
+                        uiState = uiState,
+                        returnRevealProgress = returnReveal.value,
+                        sharedTransitionScope = sharedTransitionScope,
+                        animatedVisibilityScope = animatedVisibilityScope,
+                        onOpenChapterFocus = { chapterId ->
+                            feedback.chapterSwoosh(view)
+                            onOpenChapterFocus(chapterId)
+                        },
+                        onRevisionSheetClick = onRevisionSheetClick,
+                        modifier = Modifier.weight(1.35f),
+                    )
+                    TabletLearnSidePane(
+                        uiState = uiState,
+                        primaryChapter = primaryChapter,
+                        returnRevealProgress = returnReveal.value,
+                        onLessonClick = onLessonClick,
+                        onAssignmentClick = onAssignmentClick,
+                        onRevisionSheetClick = onRevisionSheetClick,
+                        modifier = Modifier
+                            .weight(0.85f)
+                            .fillMaxHeight()
+                            .padding(top = 8.dp, bottom = 20.dp),
+                    )
+                }
+            } else {
+                LearnChapterOverviewColumn(
+                    uiState = uiState,
+                    returnRevealProgress = returnReveal.value,
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedVisibilityScope = animatedVisibilityScope,
+                    onOpenChapterFocus = { chapterId ->
+                        feedback.chapterSwoosh(view)
+                        onOpenChapterFocus(chapterId)
+                    },
+                    onRevisionSheetClick = onRevisionSheetClick,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp),
+                )
+            }
         }
-    } else {
-        LearnChaptersColumn(
-            uiState = uiState,
-            returnRevealProgress = returnReveal.value,
-            sharedTransitionScope = sharedTransitionScope,
-            animatedVisibilityScope = animatedVisibilityScope,
-            onToggleChapterExpanded = onToggleChapterExpanded,
-            onLessonClick = onLessonClick,
-            onAssignmentClick = onAssignmentClick,
-            onRevisionSheetClick = onRevisionSheetClick,
-            modifier = modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp),
-        )
     }
 }
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
-private fun LearnChaptersColumn(
+private fun LearnChapterOverviewColumn(
     uiState: KovaUiState,
     returnRevealProgress: Float,
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope,
-    onToggleChapterExpanded: (String) -> Unit,
-    onLessonClick: (String) -> Unit,
-    onAssignmentClick: (String) -> Unit,
+    onOpenChapterFocus: (String) -> Unit,
     onRevisionSheetClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -219,7 +277,6 @@ private fun LearnChaptersColumn(
             key = { uiState.chapters[it].id },
         ) { index ->
             val chapter = uiState.chapters[index]
-            val isExpanded = chapter.id in uiState.expandedChapterIds
             val isChapterUnlocked = chapter.isUnlocked || uiState.devUnlockAllOverride
             val chapterContainsReturnedLesson = returnEvent != null &&
                 chapter.lessons.any { it.id == returnEvent.lessonId }
@@ -229,48 +286,100 @@ private fun LearnChaptersColumn(
                 null
             }
 
-            Column(
+            Box(
                 modifier = Modifier.graphicsLayer {
                     val staggerShift = (1f - returnRevealProgress) * (24f + index * 18f)
                     translationY = staggerShift
                 },
-                verticalArrangement = Arrangement.spacedBy(0.dp),
             ) {
                 Tactile3DChapterCard(
                     chapter = chapter,
                     isUnlocked = isChapterUnlocked,
-                    isExpanded = isExpanded,
+                    isExpanded = false,
                     celebrationNonce = ringCelebrationNonce,
                     sharedTransitionScope = sharedTransitionScope,
                     animatedVisibilityScope = animatedVisibilityScope,
-                    onToggleExpand = { onToggleChapterExpanded(chapter.id) },
+                    onToggleExpand = { onOpenChapterFocus(chapter.id) },
                     onRevisionSheetClick = { onRevisionSheetClick(chapter.id) },
                 )
+            }
+        }
+    }
+}
 
-                val motion = LocalKovaMotion.current
-                AnimatedVisibility(
-                    visible = isExpanded,
-                    enter = if (motion.enabled) {
-                        expandVertically(
-                            animationSpec = spring(
-                                dampingRatio = 0.76f,
-                                stiffness = 340f,
-                            ),
-                        ) + fadeIn(tween(200))
-                    } else {
-                        expandVertically(snap()) + fadeIn(snap())
-                    },
-                    exit = if (motion.enabled) {
-                        shrinkVertically(
-                            animationSpec = spring(
-                                dampingRatio = 0.82f,
-                                stiffness = 360f,
-                            ),
-                        ) + fadeOut(tween(150))
-                    } else {
-                        shrinkVertically(snap()) + fadeOut(snap())
-                    },
-                ) {
+/**
+ * Chapter Focus Mode:
+ * - Global nav bar/rail & dashboard cards are hidden/disabled.
+ * - Clickable Top Chapter Header Bar returns to Chapter Overview.
+ * - Winding 3D Quest Pedestals with Directional Glowing Quest Wires.
+ * - Only AI remains enabled via the floating bottom-right corner AI Circle shortcut.
+ */
+@OptIn(ExperimentalSharedTransitionApi::class)
+@Composable
+private fun ChapterFocusView(
+    chapter: Chapter,
+    uiState: KovaUiState,
+    isCompactFloating: Boolean,
+    returnRevealProgress: Float,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedVisibilityScope: AnimatedVisibilityScope,
+    onBackToOverview: () -> Unit,
+    onOpenChapterAiSheet: () -> Unit,
+    onLessonClick: (String) -> Unit,
+    onAssignmentClick: (String) -> Unit,
+    onRevisionSheetClick: () -> Unit,
+) {
+    val tactile = LocalKovaTactileColors.current
+    val isChapterUnlocked = chapter.isUnlocked || uiState.devUnlockAllOverride
+    val returnEvent = uiState.lessonReturnEvent
+    val ringCelebrationNonce = if (
+        returnEvent != null &&
+        returnEvent.wasNewlyCompleted &&
+        chapter.lessons.any { it.id == returnEvent.lessonId }
+    ) {
+        returnEvent.nonce
+    } else {
+        null
+    }
+
+    BackHandler(onBack = onBackToOverview)
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .then(if (!isCompactFloating) Modifier.statusBarsPadding() else Modifier)
+            .testTag("chapter_focus_view_${chapter.id}"),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            // Clickable Top Chapter Header Bar -> Navigates back to Chapter Overview
+            FocusedChapterReturnBar(
+                chapter = chapter,
+                isUnlocked = isChapterUnlocked,
+                celebrationNonce = ringCelebrationNonce,
+                onBackToOverview = onBackToOverview,
+                onRevisionSheetClick = onRevisionSheetClick,
+                modifier = Modifier.graphicsLayer {
+                    alpha = returnRevealProgress
+                    translationY = (1f - returnRevealProgress) * -24f
+                },
+            )
+
+            // Centered scrollable 3D Quest Path with Directional Glowing Wires
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .navigationBarsPadding()
+                    .padding(bottom = 96.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Box(modifier = Modifier.widthIn(max = 620.dp)) {
                     ChapterWindingQuestTrail(
                         chapter = chapter,
                         isChapterUnlocked = isChapterUnlocked,
@@ -280,6 +389,129 @@ private fun LearnChaptersColumn(
                         animatedVisibilityScope = animatedVisibilityScope,
                         onLessonClick = onLessonClick,
                         onAssignmentClick = onAssignmentClick,
+                    )
+                }
+            }
+        }
+
+        // ONLY enabled shortcut in Chapter Focus Mode: Floating Corner AI Circle Button
+        Surface(
+            onClick = onOpenChapterAiSheet,
+            shape = CircleShape,
+            color = tactile.cardFace,
+            border = BorderStroke(1.75.dp, tactile.cobaltFace),
+            shadowElevation = 6.dp,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .navigationBarsPadding()
+                .padding(end = 20.dp, bottom = 20.dp)
+                .size(64.dp)
+                .testTag("chapter_focus_ai_fab"),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                KovaAiEmblem(size = 44.dp, lipHeight = 3.5.dp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun FocusedChapterReturnBar(
+    chapter: Chapter,
+    isUnlocked: Boolean,
+    celebrationNonce: Long?,
+    onBackToOverview: () -> Unit,
+    onRevisionSheetClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val tactile = LocalKovaTactileColors.current
+    val emblemIcon = if (chapter.number == 1) Icons.Filled.Code else Icons.Filled.Functions
+
+    KovaTactileCard(
+        shape = KovaExpressiveShapes.HeroChapterCard,
+        faceColor = tactile.cardFace,
+        lipColor = if (isUnlocked) tactile.cobaltLip else tactile.cardLip,
+        borderColor = if (isUnlocked) tactile.cobaltFace else tactile.cardOutline,
+        lipHeight = 5.dp,
+        borderWidth = 1.5.dp,
+        onClick = onBackToOverview,
+        playTapSound = false,
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("focused_chapter_top_return_bar"),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Surface(
+                shape = CircleShape,
+                color = tactile.cobaltSoft,
+                border = BorderStroke(1.dp, tactile.cobaltFace.copy(alpha = 0.45f)),
+                modifier = Modifier.size(40.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = "Back to Chapters",
+                        tint = tactile.onCobaltSoft,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+
+            Kova3DChapterRing(
+                progress = chapter.progressFraction,
+                emblemIcon = emblemIcon,
+                emblemContentDescription = "Chapter ${chapter.number} progress",
+                arcColor = if (chapter.progressFraction >= 1f) tactile.emeraldFace else tactile.cobaltFace,
+                arcLipColor = if (chapter.progressFraction >= 1f) tactile.emeraldLip else tactile.cobaltLip,
+                emblemFaceColor = if (isUnlocked) tactile.cobaltFace else tactile.stoneFace,
+                emblemLipColor = if (isUnlocked) tactile.cobaltLip else tactile.stoneLip,
+                emblemIconTint = if (isUnlocked) tactile.onCobaltFace else tactile.stoneLabel,
+                size = 50.dp,
+                strokeWidth = 6.dp,
+                celebrationNonce = celebrationNonce,
+            )
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    text = "Chapter ${chapter.number}: ${chapter.title}",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = "${chapter.completedLessonCount}/${chapter.lessons.size} lessons · Tap bar for Chapters",
+                    style = KovaCodeTextStyle,
+                    color = tactile.cobaltFace,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+
+            Surface(
+                onClick = onRevisionSheetClick,
+                shape = CircleShape,
+                color = tactile.emeraldSoft,
+                border = BorderStroke(1.dp, tactile.emeraldFace.copy(alpha = 0.45f)),
+                modifier = Modifier
+                    .size(40.dp)
+                    .testTag("focused_chapter_revision_sheet_button"),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Outlined.AutoStories,
+                        contentDescription = "Chapter revision sheet",
+                        tint = tactile.onEmeraldSoft,
+                        modifier = Modifier.size(19.dp),
                     )
                 }
             }
@@ -481,18 +713,16 @@ private fun Tactile3DChapterCard(
 
                 Surface(
                     shape = CircleShape,
-                    color = if (isExpanded && isUnlocked) tactile.cobaltSoft else MaterialTheme.colorScheme.surfaceContainerLow,
+                    color = if (isUnlocked) tactile.cobaltSoft else MaterialTheme.colorScheme.surfaceContainerLow,
                     border = BorderStroke(1.dp, tactile.cardOutline),
                     modifier = Modifier.size(38.dp),
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
-                            imageVector = Icons.Filled.KeyboardArrowDown,
-                            contentDescription = if (isExpanded) "Collapse chapter" else "Expand chapter",
-                            tint = if (isExpanded && isUnlocked) tactile.cobaltFace else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier
-                                .size(22.dp)
-                                .graphicsLayer { rotationZ = chevronRotation },
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                            contentDescription = "Enter chapter focus path",
+                            tint = if (isUnlocked) tactile.cobaltFace else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
                         )
                     }
                 }
@@ -504,10 +734,8 @@ private fun Tactile3DChapterCard(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Text(
-                    text = if (isExpanded) {
-                        "Tap card to fold quest trail"
-                    } else if (isUnlocked) {
-                        "Tap to open ${chapter.lessons.size} lessons"
+                    text = if (isUnlocked) {
+                        "Tap to enter ${chapter.lessons.size}-lesson quest path"
                     } else {
                         "Tap to peek at locked trail"
                     },
@@ -675,7 +903,7 @@ private fun SinusoidalSteppingTrailConnector(
 
     val lineColor by animateColorAsState(
         targetValue = if (isCompleted) tactile.emeraldFace else tactile.pathInactive,
-        animationSpec = if (motion.enabled) tween(360) else snap(),
+        animationSpec = if (motion.enabled) tween(380) else snap(),
         label = "sinusoidal_connector_color",
     )
 
@@ -683,15 +911,32 @@ private fun SinusoidalSteppingTrailConnector(
     LaunchedEffect(celebrationNonce, motion.enabled) {
         if (celebrationNonce != null && motion.enabled) {
             strokeBoost.snapTo(1f)
-            strokeBoost.animateTo(1.45f, spring(dampingRatio = 0.55f, stiffness = 420f))
+            strokeBoost.animateTo(1.55f, spring(dampingRatio = 0.52f, stiffness = 400f))
             strokeBoost.animateTo(1f, spring(dampingRatio = 0.76f, stiffness = 340f))
         }
+    }
+
+    // Continuous smooth directional flow pulse for completed/progressed wires
+    val flowProgress = if (isCompleted && motion.enabled) {
+        val infiniteTransition = rememberInfiniteTransition(label = "directional_wire_glow")
+        val animated by infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1900, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
+            label = "wire_pulse_t",
+        )
+        animated
+    } else {
+        0.5f
     }
 
     Canvas(
         modifier = Modifier
             .fillMaxWidth()
-            .height(50.dp),
+            .height(58.dp),
     ) {
         val centerX = size.width / 2f
         val maxShift = size.width * 0.28f
@@ -699,41 +944,96 @@ private fun SinusoidalSteppingTrailConnector(
         val endX = centerX + endBias * maxShift
         val midY = size.height / 2f
 
+        val p0 = Offset(startX, 0f)
+        val p1 = Offset(startX, midY)
+        val p2 = Offset(endX, midY)
+        val p3 = Offset(endX, size.height)
+
         val path = Path().apply {
-            moveTo(startX, 0f)
-            cubicTo(
-                startX,
-                midY,
-                endX,
-                midY,
-                endX,
-                size.height,
-            )
+            moveTo(p0.x, p0.y)
+            cubicTo(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y)
         }
 
         if (isCompleted) {
+            // Soft luminous outer aura
             drawPath(
                 path = path,
-                color = tactile.emeraldLip.copy(alpha = 0.35f),
-                style = Stroke(width = (11.dp * strokeBoost.value).toPx(), cap = StrokeCap.Round),
+                color = tactile.emeraldFace.copy(alpha = 0.20f),
+                style = Stroke(width = (16.dp * strokeBoost.value).toPx(), cap = StrokeCap.Round),
             )
+            // Grounded 3D wire lip shadow
+            drawPath(
+                path = path,
+                color = tactile.emeraldLip.copy(alpha = 0.45f),
+                style = Stroke(width = (10.dp * strokeBoost.value).toPx(), cap = StrokeCap.Round),
+            )
+            // Solid energized core wire
             drawPath(
                 path = path,
                 color = lineColor,
-                style = Stroke(width = (6.dp * strokeBoost.value).toPx(), cap = StrokeCap.Round),
+                style = Stroke(width = (5.5.dp * strokeBoost.value).toPx(), cap = StrokeCap.Round),
+            )
+
+            // Directional glowing pulse traveling smoothly from completed node -> next node
+            val headT = flowProgress
+            val tailT = (headT - 0.28f).coerceAtLeast(0f)
+            val steps = 12
+            val glowSegment = Path()
+            for (s in 0..steps) {
+                val frac = tailT + (headT - tailT) * (s.toFloat() / steps)
+                val pt = cubicBezierPoint(p0, p1, p2, p3, frac)
+                if (s == 0) glowSegment.moveTo(pt.x, pt.y) else glowSegment.lineTo(pt.x, pt.y)
+            }
+            val headPt = cubicBezierPoint(p0, p1, p2, p3, headT)
+            val tailPt = cubicBezierPoint(p0, p1, p2, p3, tailT)
+            val pulseBrush = Brush.linearGradient(
+                colors = listOf(
+                    tactile.emeraldFace.copy(alpha = 0f),
+                    Color.White.copy(alpha = 0.85f),
+                ),
+                start = tailPt,
+                end = headPt,
+            )
+            drawPath(
+                path = glowSegment,
+                brush = pulseBrush,
+                style = Stroke(width = (6.5.dp * strokeBoost.value).toPx(), cap = StrokeCap.Round),
+            )
+            drawCircle(
+                color = Color.White.copy(alpha = 0.90f),
+                radius = (4.2.dp * strokeBoost.value).toPx(),
+                center = headPt,
             )
         } else {
+            // Visibly dimmed inactive wire for upcoming/incomplete segments
             drawPath(
                 path = path,
-                color = lineColor,
+                color = lineColor.copy(alpha = 0.36f),
                 style = Stroke(
-                    width = 5.5.dp.toPx(),
+                    width = 4.5.dp.toPx(),
                     cap = StrokeCap.Round,
-                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(2f, 22f), 0f),
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(5f, 20f), 0f),
                 ),
             )
         }
     }
+}
+
+private fun cubicBezierPoint(
+    p0: Offset,
+    p1: Offset,
+    p2: Offset,
+    p3: Offset,
+    t: Float,
+): Offset {
+    val u = 1f - t
+    val tt = t * t
+    val uu = u * u
+    val uuu = uu * u
+    val ttt = tt * t
+    val x = uuu * p0.x + 3f * uu * t * p1.x + 3f * u * tt * p2.x + ttt * p3.x
+    val y = uuu * p0.y + 3f * uu * t * p1.y + 3f * u * tt * p2.y + ttt * p3.y
+    return Offset(x, y)
 }
 
 @OptIn(ExperimentalSharedTransitionApi::class)

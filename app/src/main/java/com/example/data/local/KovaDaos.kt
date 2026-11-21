@@ -4,6 +4,8 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
+import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -17,17 +19,31 @@ interface ChatDao {
     @Query("SELECT COUNT(*) FROM chat_threads")
     suspend fun getThreadCount(): Int
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    /**
+     * CRITICAL: Uses @Upsert instead of @Insert(onConflict = REPLACE) because SQLite implements
+     * INSERT OR REPLACE as DELETE + INSERT, which triggers ForeignKey.CASCADE and wipes all
+     * child rows in chat_messages!
+     */
+    @Upsert
     suspend fun upsertThread(thread: ChatThreadEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertThreads(threads: List<ChatThreadEntity>)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertMessage(message: ChatMessageEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertMessages(messages: List<ChatMessageEntity>)
+
+    @Transaction
+    suspend fun appendMessagesTransaction(
+        thread: ChatThreadEntity,
+        messages: List<ChatMessageEntity>,
+    ) {
+        upsertThread(thread)
+        upsertMessages(messages)
+    }
 
     @Query("UPDATE chat_threads SET isPinned = :pinned WHERE id = :threadId")
     suspend fun updateThreadPinned(threadId: String, pinned: Boolean)

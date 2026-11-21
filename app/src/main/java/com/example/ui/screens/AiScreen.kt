@@ -1,11 +1,14 @@
 package com.example.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -45,8 +48,10 @@ import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.OpenInFull
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.ViewSidebar
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -75,6 +80,8 @@ import com.example.model.ChatMessage
 import com.example.model.ChatThread
 import com.example.model.HighlightCategory
 import com.example.model.KovaUiState
+import com.example.ui.components.KovaAiEmblem
+import com.example.ui.components.KovaAiWelcomeEmblemCard
 import com.example.ui.components.KovaPillBadge
 import com.example.ui.components.KovaTactileButton
 import com.example.ui.components.KovaTactileCard
@@ -95,6 +102,8 @@ private val QuickPromptTemplates = listOf(
 fun AiScreen(
     uiState: KovaUiState,
     isWideTabletLayout: Boolean,
+    onToggleHistoryVisibility: (Boolean) -> Unit,
+    onSetHistoryVisibility: (Boolean) -> Unit,
     onSelectThread: (String) -> Unit,
     onCreateNewThread: () -> Unit,
     onUpdateSearchQuery: (String) -> Unit,
@@ -106,7 +115,9 @@ fun AiScreen(
     onSaveMessageToNotes: (String, HighlightCategory) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var isHistoryDrawerOpen by remember { mutableStateOf(false) }
+    val motion = LocalKovaMotion.current
+    // Default: hidden on phones, visible on tablets; user toggle overrides on any screen
+    val isHistoryVisible = uiState.isAiHistoryVisible ?: isWideTabletLayout
 
     Box(
         modifier = modifier
@@ -118,35 +129,52 @@ fun AiScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = 20.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(if (isHistoryVisible) 16.dp else 0.dp),
             ) {
-                ChatHistoryPanel(
-                    threads = uiState.filteredChatThreads,
-                    activeThreadId = uiState.activeThread?.id,
-                    searchQuery = uiState.chatSearchQuery,
-                    showCloseButton = false,
-                    onSearchQueryChange = onUpdateSearchQuery,
-                    onCreateNewThread = onCreateNewThread,
-                    onSelectThread = onSelectThread,
-                    onTogglePin = onTogglePinThread,
-                    onDeleteThread = onDeleteThread,
-                    onClose = {},
-                    modifier = Modifier
-                        .weight(0.36f)
-                        .fillMaxHeight()
-                        .padding(bottom = 16.dp),
-                )
+                AnimatedVisibility(
+                    visible = isHistoryVisible,
+                    enter = if (motion.enabled) {
+                        expandHorizontally(spring(dampingRatio = 0.78f, stiffness = 340f)) + fadeIn()
+                    } else {
+                        expandHorizontally(snap()) + fadeIn(snap())
+                    },
+                    exit = if (motion.enabled) {
+                        shrinkHorizontally(spring(dampingRatio = 0.82f, stiffness = 360f)) + fadeOut()
+                    } else {
+                        shrinkHorizontally(snap()) + fadeOut(snap())
+                    },
+                ) {
+                    ChatHistoryPanel(
+                        threads = uiState.filteredChatThreads,
+                        activeThreadId = uiState.activeThread?.id,
+                        searchQuery = uiState.chatSearchQuery,
+                        showCloseButton = true,
+                        onSearchQueryChange = onUpdateSearchQuery,
+                        onCreateNewThread = onCreateNewThread,
+                        onSelectThread = onSelectThread,
+                        onTogglePin = onTogglePinThread,
+                        onDeleteThread = onDeleteThread,
+                        onClose = { onSetHistoryVisibility(false) },
+                        modifier = Modifier
+                            .width(310.dp)
+                            .fillMaxHeight()
+                            .padding(bottom = 16.dp),
+                    )
+                }
 
                 AiChatMainPane(
                     uiState = uiState,
                     isWideTabletLayout = true,
-                    onOpenHistoryDrawer = {},
+                    isHistoryVisible = isHistoryVisible,
+                    showHistoryToggle = true,
+                    bottomInsetPadding = 14.dp,
+                    onToggleHistory = { onToggleHistoryVisibility(true) },
                     onUpdateComposerText = onUpdateComposerText,
                     onInsertQuickPrompt = onInsertQuickPrompt,
                     onSendMessage = onSendMessage,
                     onSaveMessageToNotes = onSaveMessageToNotes,
                     modifier = Modifier
-                        .weight(0.64f)
+                        .weight(1f)
                         .fillMaxHeight(),
                 )
             }
@@ -154,7 +182,10 @@ fun AiScreen(
             AiChatMainPane(
                 uiState = uiState,
                 isWideTabletLayout = false,
-                onOpenHistoryDrawer = { isHistoryDrawerOpen = true },
+                isHistoryVisible = isHistoryVisible,
+                showHistoryToggle = true,
+                bottomInsetPadding = 94.dp,
+                onToggleHistory = { onToggleHistoryVisibility(false) },
                 onUpdateComposerText = onUpdateComposerText,
                 onInsertQuickPrompt = onInsertQuickPrompt,
                 onSendMessage = onSendMessage,
@@ -165,12 +196,19 @@ fun AiScreen(
             )
 
             // Slide-over Persistent Chat History Drawer on compact screens
-            if (isHistoryDrawerOpen) {
+            AnimatedVisibility(
+                visible = isHistoryVisible,
+                enter = fadeIn(),
+                exit = fadeOut(),
+            ) {
+                BackHandler(enabled = isHistoryVisible) {
+                    onSetHistoryVisibility(false)
+                }
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.45f))
-                        .clickable { isHistoryDrawerOpen = false },
+                        .background(Color.Black.copy(alpha = 0.50f))
+                        .clickable { onSetHistoryVisibility(false) },
                 ) {
                     ChatHistoryPanel(
                         threads = uiState.filteredChatThreads,
@@ -180,15 +218,15 @@ fun AiScreen(
                         onSearchQueryChange = onUpdateSearchQuery,
                         onCreateNewThread = {
                             onCreateNewThread()
-                            isHistoryDrawerOpen = false
+                            onSetHistoryVisibility(false)
                         },
                         onSelectThread = { id ->
                             onSelectThread(id)
-                            isHistoryDrawerOpen = false
+                            onSetHistoryVisibility(false)
                         },
                         onTogglePin = onTogglePinThread,
                         onDeleteThread = onDeleteThread,
-                        onClose = { isHistoryDrawerOpen = false },
+                        onClose = { onSetHistoryVisibility(false) },
                         modifier = Modifier
                             .fillMaxHeight()
                             .fillMaxWidth(0.86f)
@@ -202,11 +240,164 @@ fun AiScreen(
     }
 }
 
+/**
+ * Slide-over scoped AI companion overlay launched from the corner AI circle shortcut inside
+ * Chapter Focus Mode. Keeps the focused chapter open underneath and offers a 1-tap
+ * "Open Full AI Lab" button to switch to the full AI tab anytime.
+ */
+@Composable
+fun ChapterScopedAiSheet(
+    uiState: KovaUiState,
+    chapterLabel: String,
+    onDismiss: () -> Unit,
+    onOpenFullAiLab: () -> Unit,
+    onUpdateComposerText: (String) -> Unit,
+    onInsertQuickPrompt: (String) -> Unit,
+    onSendMessage: () -> Unit,
+    onSaveMessageToNotes: (String, HighlightCategory) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val tactile = LocalKovaTactileColors.current
+    val feedback = LocalKovaFeedback.current
+    val view = LocalView.current
+
+    BackHandler(onBack = onDismiss)
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.54f))
+            .clickable(onClick = onDismiss)
+            .testTag("chapter_ai_overlay_scrim"),
+        contentAlignment = Alignment.BottomEnd,
+    ) {
+        KovaTactileCard(
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp, bottomStart = 0.dp, bottomEnd = 0.dp),
+            faceColor = MaterialTheme.colorScheme.background,
+            lipColor = tactile.cobaltLip,
+            borderColor = tactile.cobaltFace.copy(alpha = 0.55f),
+            lipHeight = 0.dp,
+            borderWidth = 1.5.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 620.dp)
+                .fillMaxHeight(0.84f)
+                .clickable(enabled = false) {}
+                .testTag("chapter_ai_slide_over_sheet"),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                // Sheet header with Kova AI Emblem + "Open Full AI Lab" + Close
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    KovaAiEmblem(size = 36.dp, lipHeight = 3.dp)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Kova AI Companion",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = chapterLabel,
+                            style = KovaCodeTextStyle,
+                            color = tactile.cobaltFace,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+
+                    Surface(
+                        onClick = {
+                            feedback.tap(view)
+                            onOpenFullAiLab()
+                        },
+                        shape = KovaExpressiveShapes.Pill,
+                        color = tactile.cobaltSoft,
+                        border = BorderStroke(1.dp, tactile.cobaltFace.copy(alpha = 0.55f)),
+                        modifier = Modifier
+                            .height(38.dp)
+                            .testTag("chapter_ai_open_full_lab_button"),
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 11.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.OpenInFull,
+                                contentDescription = null,
+                                tint = tactile.onCobaltSoft,
+                                modifier = Modifier.size(15.dp),
+                            )
+                            Text(
+                                text = "AI Lab",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                color = tactile.onCobaltSoft,
+                                maxLines = 1,
+                                softWrap = false,
+                            )
+                        }
+                    }
+
+                    Surface(
+                        shape = CircleShape,
+                        color = tactile.cardFace,
+                        border = BorderStroke(1.dp, tactile.cardOutline),
+                    ) {
+                        IconButton(
+                            onClick = {
+                                feedback.tap(view)
+                                onDismiss()
+                            },
+                            modifier = Modifier
+                                .size(38.dp)
+                                .testTag("chapter_ai_close_button"),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Close,
+                                contentDescription = stringResource(R.string.cd_close_detail),
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(19.dp),
+                            )
+                        }
+                    }
+                }
+
+                AiChatMainPane(
+                    uiState = uiState,
+                    isWideTabletLayout = false,
+                    isHistoryVisible = false,
+                    showHistoryToggle = false,
+                    bottomInsetPadding = 6.dp,
+                    onToggleHistory = {},
+                    onUpdateComposerText = onUpdateComposerText,
+                    onInsertQuickPrompt = onInsertQuickPrompt,
+                    onSendMessage = onSendMessage,
+                    onSaveMessageToNotes = onSaveMessageToNotes,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun AiChatMainPane(
     uiState: KovaUiState,
     isWideTabletLayout: Boolean,
-    onOpenHistoryDrawer: () -> Unit,
+    isHistoryVisible: Boolean,
+    showHistoryToggle: Boolean,
+    bottomInsetPadding: androidx.compose.ui.unit.Dp,
+    onToggleHistory: () -> Unit,
     onUpdateComposerText: (String) -> Unit,
     onInsertQuickPrompt: (String) -> Unit,
     onSendMessage: () -> Unit,
@@ -225,15 +416,17 @@ private fun AiChatMainPane(
         val activeLesson = uiState.activeLesson
         "Lesson ${activeLesson?.code ?: "1.1"} · ${activeLesson?.title ?: "Variables & Boxes"}"
     }
+    val showWelcomeEmblem = messages.none { it.isFromUser }
 
     LaunchedEffect(messages.size, activeThread?.id) {
-        if (messages.isNotEmpty()) {
-            listState.animateScrollToItem(messages.lastIndex)
+        val totalItems = messages.size + if (showWelcomeEmblem) 1 else 0
+        if (totalItems > 0) {
+            listState.animateScrollToItem(totalItems - 1)
         }
     }
 
     Column(
-        modifier = modifier.padding(bottom = if (isWideTabletLayout) 14.dp else 94.dp),
+        modifier = modifier.padding(bottom = bottomInsetPadding),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         // Structured Header: Active Lesson Pill + Collapsible Session Selector + 3-Metric Quota Summary
@@ -256,52 +449,72 @@ private fun AiChatMainPane(
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    KovaPillBadge(
-                        text = scopedLabel,
-                        leadingIcon = Icons.Outlined.Lock,
-                        containerColor = tactile.cobaltSoft,
-                        contentColor = tactile.onCobaltSoft,
-                        borderColor = Color.Transparent,
-                        useMonospace = false,
-                        modifier = Modifier.weight(1f),
-                    )
+                    if (showHistoryToggle) {
+                        KovaAiEmblem(
+                            size = 38.dp,
+                            lipHeight = 3.dp,
+                            modifier = Modifier.testTag("ai_header_emblem"),
+                        )
+                    }
 
-                    if (!isWideTabletLayout) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(3.dp),
+                    ) {
+                        if (showHistoryToggle) {
+                            Text(
+                                text = "Kova AI Tutor",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        KovaPillBadge(
+                            text = scopedLabel,
+                            leadingIcon = Icons.Outlined.Lock,
+                            containerColor = tactile.cobaltSoft,
+                            contentColor = tactile.onCobaltSoft,
+                            borderColor = Color.Transparent,
+                            useMonospace = false,
+                        )
+                    }
+
+                    if (showHistoryToggle) {
                         Surface(
                             onClick = {
                                 feedback.tap(view)
-                                onOpenHistoryDrawer()
+                                onToggleHistory()
                             },
                             shape = KovaExpressiveShapes.Pill,
-                            color = MaterialTheme.colorScheme.surfaceContainerLow,
-                            border = BorderStroke(1.dp, tactile.cardOutline),
+                            color = if (isHistoryVisible) tactile.cobaltSoft else MaterialTheme.colorScheme.surfaceContainerLow,
+                            border = BorderStroke(
+                                1.dp,
+                                if (isHistoryVisible) tactile.cobaltFace.copy(alpha = 0.55f) else tactile.cardOutline,
+                            ),
                             modifier = Modifier
-                                .height(36.dp)
+                                .height(38.dp)
                                 .testTag("open_chat_history_button"),
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(5.dp),
                             ) {
                                 Icon(
-                                    imageVector = Icons.Outlined.History,
-                                    contentDescription = stringResource(R.string.cd_open_history),
+                                    imageVector = if (isWideTabletLayout) Icons.Outlined.ViewSidebar else Icons.Outlined.History,
+                                    contentDescription = if (isHistoryVisible) "Hide chat history" else stringResource(R.string.cd_open_history),
                                     tint = tactile.cobaltFace,
                                     modifier = Modifier.size(16.dp),
                                 )
                                 Text(
-                                    text = "${uiState.chatThreads.size}",
+                                    text = if (isHistoryVisible) "Hide" else "History (${uiState.chatThreads.size})",
                                     style = KovaCodeTextStyle.copy(fontWeight = FontWeight.Bold),
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                )
-                                Icon(
-                                    imageVector = Icons.Outlined.ExpandMore,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(15.dp),
+                                    color = if (isHistoryVisible) tactile.onCobaltSoft else MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    softWrap = false,
                                 )
                             }
                         }
@@ -355,6 +568,14 @@ private fun AiChatMainPane(
             contentPadding = PaddingValues(vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            if (showWelcomeEmblem) {
+                item(key = "ai_welcome_emblem_card") {
+                    KovaAiWelcomeEmblemCard(
+                        scopedLabel = scopedLabel,
+                        modifier = Modifier.testTag("ai_welcome_emblem_card"),
+                    )
+                }
+            }
             items(items = messages, key = { it.id }) { msg ->
                 AiChatBubble(
                     message = msg,
@@ -821,7 +1042,7 @@ private fun AiChatBubble(
                                 val tagColor = category.accentColor()
                                 Surface(
                                     onClick = {
-                                        feedback.success(view)
+                                        feedback.gotItChime(view)
                                         showCategoryPicker = false
                                         onSaveToNotes(category)
                                     },

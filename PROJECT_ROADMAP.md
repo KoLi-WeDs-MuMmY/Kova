@@ -94,6 +94,21 @@ This document preserves the North Star vision, Phase 1 deliverable contract, and
   - Disabled Material 3 tonal elevation wash (`surfaceTint = Color.Transparent`, `LocalTonalElevationEnabled = false`, `tonalElevation = 0.dp` on Settings sheet) and painted the Android window background `#000000` so AMOLED cards (`#111111`/`#181818` with `#282828` outlines and grounded 3D lips) float over pure black.
   - Hardened compact & landscape layouts with `FlowRow` headers/pills, `maxLines = 1` + `TextOverflow.Ellipsis`, and compact-height adaptation inside the `25%` IDE pane so badges, buttons, and split-ratio pills never crowd or overlap.
 
+## Part B.5: Phase 1.5 AI Persistence Fix, Interruptible Audio, Chapter Focus & Blurred Flashcard Stage (Implemented)
+
+- **AI Vanishing Sent Message Fix + Collapsible History + Kova AI Emblem**:
+  - Replaced `OnConflictStrategy.REPLACE` with Room `@Upsert` + atomic `@Transaction appendMessagesTransaction` so updating a thread preview never cascade-deletes child `chat_messages`; paired with optimistic in-memory pending-message merging in `KovaViewModel`.
+  - Added a clean **Hide / Unhide History** toggle in the AI header (defaults hidden on phones, visible on tablets) and custom geometric 3D **`KovaAiEmblem`** in the header and fresh-thread welcome canvas.
+- **Interruptible Zero-Overlap Duolingo-Style Audio & Haptics**:
+  - Rebuilt `KovaFeedbackEngine` with a single-slot conflating `AudioTrack` worker, `AtomicLong` generation counter, and immediate `pause() + flush()` reset so rapid taps restart cleanly from `0` with zero audio stacking.
+  - Expanded to 8 cues: crisp tap pop, pedestal press, chapter swoosh-pop, split-ratio mechanical tick, flashcard flip, ascending `"Got It"` chime, gentle low thud (`"Review Again"` / locked), and 4-note celebratory arpeggio (`C5 -> E5 -> G5 -> C6`).
+- **Chapter Focus Mode & Directional Glowing Quest Wires**:
+  - Learn tab opens on the clean **Chapter Overview**; tapping a chapter transitions into **Chapter Focus Mode** (hiding global navigation & dashboard chrome), with a clickable **Top Chapter Header Bar** to return and a floating **corner AI circle button** that launches a **slide-over Chapter AI Sheet** (keeping the chapter open, with an `"AI Lab"` jump button to the full AI tab).
+  - Completed/progressed Bezier stepping connectors render a smooth directional luminous flow pulse, while upcoming segments remain dimmed.
+- **Structured Revision Study Binder & Blurred-Backdrop Focused Flashcard Stage**:
+  - Rebuilt Revision with a compact Mastery & Quota header, active Chapter Revision Sheet shortcut, clean 3-way segmented binder (`Notes` | `Flashcards` | `SR`), and zero-overlap `FlowRow` cards.
+  - Added a Preview Card with `"Launch Focus Stage"` opening a full-screen **Focused Flashcard Stage** over a real blurred backdrop (`Modifier.blur(18.dp)` on Android 12+ + frosted scrim), tactile 3D-flip cards, and dedicated scrollable monospace Kotlin code blocks.
+
 ---
 
 ## Part C: Upcoming Phase 2/3 (Live Gemini AI, Interactive Lessons & Lab Prompt Builder)

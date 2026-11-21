@@ -1,6 +1,8 @@
 package com.example.ui
 
+import android.os.Build
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.core.animateFloatAsState
@@ -10,6 +12,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -61,6 +65,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -86,7 +91,9 @@ import com.example.ui.components.KovaTactileCard
 import com.example.ui.feedback.KovaFeedbackController
 import com.example.ui.feedback.LocalKovaFeedback
 import com.example.ui.screens.AiScreen
+import com.example.ui.screens.ChapterScopedAiSheet
 import com.example.ui.screens.DetailSheetHost
+import com.example.ui.screens.FlashcardFocusStageOverlay
 import com.example.ui.screens.LabScreen
 import com.example.ui.screens.LearnScreen
 import com.example.ui.screens.RevisionScreen
@@ -175,7 +182,11 @@ fun KovaApp(
                         feedbackController.tap(view)
                         viewModel.setSettingsOpen(true)
                     },
-                    onToggleChapterExpanded = viewModel::toggleChapterExpanded,
+                    onOpenChapterFocus = viewModel::openChapterFocus,
+                    onCloseChapterFocus = viewModel::closeChapterFocus,
+                    onOpenChapterAiSheet = { viewModel.setChapterAiSheetOpen(true) },
+                    onDismissChapterAiSheet = { viewModel.setChapterAiSheetOpen(false) },
+                    onSwitchChapterToAiLab = viewModel::switchFromChapterFocusToAiTab,
                     onLessonClick = viewModel::openLesson,
                     onAssignmentClick = viewModel::openAssignment,
                     onNoteClick = viewModel::openNote,
@@ -184,6 +195,8 @@ fun KovaApp(
                     onCycleSplitRatio = viewModel::cycleLessonSplitRatio,
                     onPassLessonMockTest = viewModel::passLessonMockTest,
                     onCompleteAssignment = viewModel::completeAssignment,
+                    onToggleAiHistoryVisibility = viewModel::toggleAiHistoryVisibility,
+                    onSetAiHistoryVisibility = viewModel::setAiHistoryVisibility,
                     onSelectThread = viewModel::selectChatThread,
                     onCreateNewThread = viewModel::createNewLessonThread,
                     onUpdateChatSearch = viewModel::updateChatSearchQuery,
@@ -197,6 +210,8 @@ fun KovaApp(
                     onUpdateRevisionSearch = viewModel::updateRevisionSearchQuery,
                     onSelectHighlightFilter = viewModel::selectHighlightFilter,
                     onFocusNextFromRadar = viewModel::focusNextFromRadar,
+                    onLaunchFlashcardFocusStage = viewModel::openFlashcardFocusStage,
+                    onCloseFlashcardFocusStage = viewModel::closeFlashcardFocusStage,
                     onStartQuickReview = viewModel::startQuickReviewFromQueue,
                     onTogglePauseSprint = viewModel::togglePauseFlashcardSprint,
                     onRestartSprint = { viewModel.restartFlashcardSprint(autoStart = true) },
@@ -231,7 +246,11 @@ private fun KovaShellContent(
     onTabSelected: (KovaTab) -> Unit,
     onToggleFloating: () -> Unit,
     onOpenSettings: () -> Unit,
-    onToggleChapterExpanded: (String) -> Unit,
+    onOpenChapterFocus: (String) -> Unit,
+    onCloseChapterFocus: () -> Unit,
+    onOpenChapterAiSheet: () -> Unit,
+    onDismissChapterAiSheet: () -> Unit,
+    onSwitchChapterToAiLab: () -> Unit,
     onLessonClick: (String) -> Unit,
     onAssignmentClick: (String, String) -> Unit,
     onNoteClick: (String) -> Unit,
@@ -240,6 +259,8 @@ private fun KovaShellContent(
     onCycleSplitRatio: () -> Unit,
     onPassLessonMockTest: (String) -> Unit,
     onCompleteAssignment: (String) -> Unit,
+    onToggleAiHistoryVisibility: (Boolean) -> Unit,
+    onSetAiHistoryVisibility: (Boolean) -> Unit,
     onSelectThread: (String) -> Unit,
     onCreateNewThread: () -> Unit,
     onUpdateChatSearch: (String) -> Unit,
@@ -253,6 +274,8 @@ private fun KovaShellContent(
     onUpdateRevisionSearch: (String) -> Unit,
     onSelectHighlightFilter: (HighlightCategory?) -> Unit,
     onFocusNextFromRadar: () -> Unit,
+    onLaunchFlashcardFocusStage: () -> Unit,
+    onCloseFlashcardFocusStage: () -> Unit,
     onStartQuickReview: () -> Unit,
     onTogglePauseSprint: () -> Unit,
     onRestartSprint: () -> Unit,
@@ -262,17 +285,24 @@ private fun KovaShellContent(
 ) {
     val motion = LocalKovaMotion.current
     val tactile = LocalKovaTactileColors.current
+    val showGlobalChrome = !uiState.isGlobalChromeHidden
 
-    // Smooth Focus Fade for app chrome when entering a lesson, and spring reveal on return
+    // Smooth Focus Fade for app chrome when entering a lesson, chapter focus, or flashcard stage
     val chromeAlpha by animateFloatAsState(
-        targetValue = if (uiState.isLessonFocusMode) 0f else 1f,
+        targetValue = if (showGlobalChrome) 1f else 0f,
         animationSpec = if (motion.enabled) {
             spring(dampingRatio = 0.76f, stiffness = 340f)
         } else {
             snap()
         },
-        label = "lesson_focus_chrome_alpha",
+        label = "focus_chrome_alpha",
     )
+
+    val blurModifier = if (uiState.isFlashcardFocusStageOpen && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        Modifier.blur(18.dp)
+    } else {
+        Modifier
+    }
 
     BoxWithConstraints(
         modifier = Modifier
@@ -282,13 +312,18 @@ private fun KovaShellContent(
         val useTabletRail = maxWidth >= 600.dp && !isCompactFloating
         val useTwoPane = maxWidth >= 700.dp && !isCompactFloating
 
-        AmbientMaterialCanvas(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .graphicsLayer { alpha = if (uiState.isLessonFocusMode) 0.45f else 1f },
-        )
+                .then(blurModifier),
+        ) {
+            AmbientMaterialCanvas(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = if (uiState.isGlobalChromeHidden) 0.45f else 1f },
+            )
 
-        SharedTransitionLayout(modifier = Modifier.fillMaxSize()) {
+            SharedTransitionLayout(modifier = Modifier.fillMaxSize()) {
             AnimatedContent(
                 targetState = uiState.activeDetail,
                 transitionSpec = {
@@ -324,7 +359,7 @@ private fun KovaShellContent(
                     }
                 } else {
                     Row(modifier = Modifier.fillMaxSize()) {
-                        if (useTabletRail) {
+                        if (useTabletRail && showGlobalChrome) {
                             Box(
                                 modifier = Modifier.graphicsLayer {
                                     alpha = chromeAlpha
@@ -340,19 +375,21 @@ private fun KovaShellContent(
 
                         Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
                             Column(modifier = Modifier.fillMaxSize()) {
-                                Box(
-                                    modifier = Modifier.graphicsLayer {
-                                        alpha = chromeAlpha
-                                        translationY = (1f - chromeAlpha) * -24f
-                                    },
-                                ) {
-                                    KovaTopBar(
-                                        isCompactFloating = isCompactFloating,
-                                        isFloatingPreview = uiState.isFloatingPreview,
-                                        devOverrideEnabled = uiState.devUnlockAllOverride,
-                                        onToggleFloating = onToggleFloating,
-                                        onOpenSettings = onOpenSettings,
-                                    )
+                                if (showGlobalChrome) {
+                                    Box(
+                                        modifier = Modifier.graphicsLayer {
+                                            alpha = chromeAlpha
+                                            translationY = (1f - chromeAlpha) * -24f
+                                        },
+                                    ) {
+                                        KovaTopBar(
+                                            isCompactFloating = isCompactFloating,
+                                            isFloatingPreview = uiState.isFloatingPreview,
+                                            devOverrideEnabled = uiState.devUnlockAllOverride,
+                                            onToggleFloating = onToggleFloating,
+                                            onOpenSettings = onOpenSettings,
+                                        )
+                                    }
                                 }
 
                                 Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
@@ -374,9 +411,12 @@ private fun KovaShellContent(
                                             KovaTab.LEARN -> LearnScreen(
                                                 uiState = uiState,
                                                 isWideTabletLayout = useTwoPane,
+                                                isCompactFloating = isCompactFloating,
                                                 sharedTransitionScope = this@SharedTransitionLayout,
                                                 animatedVisibilityScope = this@AnimatedContent,
-                                                onToggleChapterExpanded = onToggleChapterExpanded,
+                                                onOpenChapterFocus = onOpenChapterFocus,
+                                                onCloseChapterFocus = onCloseChapterFocus,
+                                                onOpenChapterAiSheet = onOpenChapterAiSheet,
                                                 onLessonClick = onLessonClick,
                                                 onAssignmentClick = { id -> onAssignmentClick(id, "learn") },
                                                 onRevisionSheetClick = onRevisionSheetClick,
@@ -391,6 +431,8 @@ private fun KovaShellContent(
                                             KovaTab.AI -> AiScreen(
                                                 uiState = uiState,
                                                 isWideTabletLayout = useTwoPane,
+                                                onToggleHistoryVisibility = onToggleAiHistoryVisibility,
+                                                onSetHistoryVisibility = onSetAiHistoryVisibility,
                                                 onSelectThread = onSelectThread,
                                                 onCreateNewThread = onCreateNewThread,
                                                 onUpdateSearchQuery = onUpdateChatSearch,
@@ -410,12 +452,8 @@ private fun KovaShellContent(
                                                 onUpdateSearchQuery = onUpdateRevisionSearch,
                                                 onSelectFilter = onSelectHighlightFilter,
                                                 onFocusNextFromRadar = onFocusNextFromRadar,
+                                                onLaunchFlashcardFocusStage = onLaunchFlashcardFocusStage,
                                                 onStartQuickReview = onStartQuickReview,
-                                                onTogglePauseSprint = onTogglePauseSprint,
-                                                onRestartSprint = onRestartSprint,
-                                                onFlipFlashcard = onFlipFlashcard,
-                                                onRateFlashcardReviewAgain = onRateFlashcardReviewAgain,
-                                                onRateFlashcardGotIt = onRateFlashcardGotIt,
                                                 onNoteClick = onNoteClick,
                                                 onOpenChapterRevisionSheet = onRevisionSheetClick,
                                             )
@@ -424,7 +462,7 @@ private fun KovaShellContent(
                                 }
                             }
 
-                            if (!useTabletRail) {
+                            if (!useTabletRail && showGlobalChrome) {
                                 KovaTactileBottomNavBar(
                                     selectedTab = uiState.selectedTab,
                                     isCompactFloating = isCompactFloating,
@@ -442,24 +480,77 @@ private fun KovaShellContent(
                 }
             }
 
-            SnackbarHost(
-                hostState = snackbarHostState,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .then(if (!isCompactFloating) Modifier.navigationBarsPadding() else Modifier)
-                    .padding(
-                        start = 16.dp,
-                        end = 16.dp,
-                        bottom = if (useTabletRail || uiState.activeDetail != null) 18.dp else 94.dp,
-                    ),
-            ) { data ->
-                Snackbar(
-                    snackbarData = data,
-                    shape = KovaExpressiveShapes.StatAndAssignmentCard,
-                    containerColor = if (tactile.isDarkSurface) tactile.cardElevatedFace else Color(0xFF1E293B),
-                    contentColor = Color.White,
+            // Slide-Over Scoped AI Sheet inside Chapter Focus Mode (+ "AI Lab" jump button)
+            AnimatedVisibility(
+                visible = uiState.isChapterAiSheetOpen && uiState.focusedChapter != null && uiState.activeDetail == null,
+                enter = if (motion.enabled) {
+                    fadeIn(tween(180)) + slideInVertically(spring(dampingRatio = 0.80f, stiffness = 360f)) { it / 2 }
+                } else {
+                    fadeIn(snap())
+                },
+                exit = if (motion.enabled) {
+                    fadeOut(tween(150)) + slideOutVertically(spring(dampingRatio = 0.84f, stiffness = 380f)) { it / 2 }
+                } else {
+                    fadeOut(snap())
+                },
+            ) {
+                val ch = uiState.focusedChapter
+                ChapterScopedAiSheet(
+                    uiState = uiState,
+                    chapterLabel = if (ch != null) "Chapter ${ch.number}: ${ch.title}" else "Active Chapter",
+                    onDismiss = onDismissChapterAiSheet,
+                    onOpenFullAiLab = onSwitchChapterToAiLab,
+                    onUpdateComposerText = onUpdateChatComposer,
+                    onInsertQuickPrompt = onInsertQuickPrompt,
+                    onSendMessage = onSendChatMessage,
+                    onSaveMessageToNotes = onSaveMessageToNotes,
                 )
             }
+        }
+        }
+
+        // Full-Screen Blurred-Backdrop Flashcard Focus Stage
+        AnimatedVisibility(
+            visible = uiState.isFlashcardFocusStageOpen,
+            enter = if (motion.enabled) {
+                fadeIn(tween(200)) + scaleIn(
+                    initialScale = 0.95f,
+                    animationSpec = spring(dampingRatio = 0.76f, stiffness = 340f),
+                )
+            } else {
+                fadeIn(snap())
+            },
+            exit = if (motion.enabled) fadeOut(tween(160)) else fadeOut(snap()),
+        ) {
+            FlashcardFocusStageOverlay(
+                deck = uiState.flashcardDeck,
+                sprint = uiState.flashcardSprint,
+                onClose = onCloseFlashcardFocusStage,
+                onTogglePause = onTogglePauseSprint,
+                onRestart = onRestartSprint,
+                onFlipCard = onFlipFlashcard,
+                onRateReviewAgain = onRateFlashcardReviewAgain,
+                onRateGotIt = onRateFlashcardGotIt,
+            )
+        }
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .then(if (!isCompactFloating) Modifier.navigationBarsPadding() else Modifier)
+                .padding(
+                    start = 16.dp,
+                    end = 16.dp,
+                    bottom = if (useTabletRail || !showGlobalChrome || uiState.activeDetail != null) 18.dp else 94.dp,
+                ),
+        ) { data ->
+            Snackbar(
+                snackbarData = data,
+                shape = KovaExpressiveShapes.StatAndAssignmentCard,
+                containerColor = if (tactile.isDarkSurface) tactile.cardElevatedFace else Color(0xFF1E293B),
+                contentColor = Color.White,
+            )
         }
     }
 }

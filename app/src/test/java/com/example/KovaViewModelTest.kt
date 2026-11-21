@@ -339,4 +339,94 @@ class KovaViewModelTest {
             tempFile.delete()
         }
     }
+
+    @Test
+    fun rapidConsecutiveAiSendsKeepAllUserMessagesPermanentlyWithoutVanishing() {
+        val vm = KovaViewModel()
+        val initialCount = vm.uiState.value.activeThreadMessages.size
+
+        vm.updateChatComposerText("First question about val vs var")
+        vm.sendChatMessage()
+        vm.updateChatComposerText("Second follow-up about type inference")
+        vm.sendChatMessage()
+        vm.updateChatComposerText("Third question about null safety")
+        vm.sendChatMessage()
+
+        val state = vm.uiState.value
+        assertEquals(initialCount + 6, state.activeThreadMessages.size)
+        val userContents = state.activeThreadMessages.filter { it.isFromUser }.map { it.content }
+        assertTrue(userContents.any { it.contains("First question about val vs var") })
+        assertTrue(userContents.any { it.contains("Second follow-up about type inference") })
+        assertTrue(userContents.any { it.contains("Third question about null safety") })
+        val activeThread = state.chatThreads.first { it.id == state.activeThreadId }
+        assertTrue(activeThread.previewSnippet.contains("Third question about null safety"))
+    }
+
+    @Test
+    fun chapterFocusModeHidesGlobalChromeAndSupportsAiSheetToAiLabSwitch() {
+        val vm = KovaViewModel()
+
+        // Learn tab starts on clean Chapter Overview (not Chapter Focus Mode)
+        assertFalse(vm.uiState.value.isChapterFocusMode)
+        assertFalse(vm.uiState.value.isGlobalChromeHidden)
+
+        // Enter Chapter 1 focus mode
+        vm.openChapterFocus("ch_1")
+        assertTrue(vm.uiState.value.isChapterFocusMode)
+        assertEquals("ch_1", vm.uiState.value.focusedChapterId)
+        assertTrue(vm.uiState.value.isGlobalChromeHidden)
+
+        // Open slide-over AI sheet while staying inside focused chapter
+        vm.setChapterAiSheetOpen(true)
+        assertTrue(vm.uiState.value.isChapterAiSheetOpen)
+        assertEquals(KovaTab.LEARN, vm.uiState.value.selectedTab)
+
+        // Switch from slide-over sheet directly to full AI Lab tab
+        vm.switchFromChapterFocusToAiTab()
+        assertEquals(KovaTab.AI, vm.uiState.value.selectedTab)
+        assertFalse(vm.uiState.value.isChapterAiSheetOpen)
+        assertFalse(vm.uiState.value.isChapterFocusMode)
+        assertFalse(vm.uiState.value.isGlobalChromeHidden)
+
+        // Re-enter chapter focus and return to Chapter Overview via top bar
+        vm.selectTab(KovaTab.LEARN)
+        vm.openChapterFocus("ch_1")
+        assertTrue(vm.uiState.value.isChapterFocusMode)
+        vm.closeChapterFocus()
+        assertFalse(vm.uiState.value.isChapterFocusMode)
+        assertFalse(vm.uiState.value.isGlobalChromeHidden)
+    }
+
+    @Test
+    fun aiHistoryVisibilityDefaultsByFormFactorAndTogglesCleanly() {
+        val vm = KovaViewModel()
+        assertEquals(null, vm.uiState.value.isAiHistoryVisible)
+
+        // Phone default (false) toggles to true, then back to false
+        vm.toggleAiHistoryVisibility(isWideTabletLayout = false)
+        assertEquals(true, vm.uiState.value.isAiHistoryVisible)
+        vm.toggleAiHistoryVisibility(isWideTabletLayout = false)
+        assertEquals(false, vm.uiState.value.isAiHistoryVisible)
+
+        // Tablet default (true) toggles cleanly via explicit setter
+        vm.setAiHistoryVisibility(true)
+        assertEquals(true, vm.uiState.value.isAiHistoryVisible)
+        vm.toggleAiHistoryVisibility(isWideTabletLayout = true)
+        assertEquals(false, vm.uiState.value.isAiHistoryVisible)
+    }
+
+    @Test
+    fun flashcardFocusStageHidesGlobalChromeAndPausesTimerOnClose() {
+        val vm = KovaViewModel()
+        assertFalse(vm.uiState.value.isFlashcardFocusStageOpen)
+
+        vm.openFlashcardFocusStage()
+        assertTrue(vm.uiState.value.isFlashcardFocusStageOpen)
+        assertTrue(vm.uiState.value.isGlobalChromeHidden)
+
+        vm.closeFlashcardFocusStage()
+        assertFalse(vm.uiState.value.isFlashcardFocusStageOpen)
+        assertFalse(vm.uiState.value.isGlobalChromeHidden)
+        assertFalse(vm.uiState.value.flashcardSprint.isRunning)
+    }
 }

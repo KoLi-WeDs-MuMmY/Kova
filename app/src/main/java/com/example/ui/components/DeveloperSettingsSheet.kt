@@ -102,7 +102,7 @@ fun DeveloperSettingsSheet(
                     )
                 }
                 KovaPillBadge(
-                    text = "PHASE 1.4",
+                    text = "PHASE 1.5",
                     containerColor = tactile.coralSoft,
                     contentColor = tactile.onCoralSoft,
                     borderColor = tactile.coralFace.copy(alpha = 0.45f),

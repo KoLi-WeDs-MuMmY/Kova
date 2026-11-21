@@ -21,6 +21,7 @@ interface StudyPersistenceRepository {
     suspend fun ensureSeeded(seedSource: LearningRepository)
     suspend fun upsertThread(thread: ChatThread)
     suspend fun appendMessage(thread: ChatThread, message: ChatMessage)
+    suspend fun appendMessages(thread: ChatThread, messages: List<ChatMessage>)
     suspend fun setThreadPinned(threadId: String, pinned: Boolean)
     suspend fun deleteThread(threadId: String)
     suspend fun markMessageSaved(messageId: String, noteId: String)
@@ -66,8 +67,11 @@ class RoomStudyPersistenceRepository(
     }
 
     override suspend fun appendMessage(thread: ChatThread, message: ChatMessage) {
-        chatDao.upsertThread(thread.toEntity())
-        chatDao.upsertMessage(message.toEntity())
+        chatDao.appendMessagesTransaction(thread.toEntity(), listOf(message.toEntity()))
+    }
+
+    override suspend fun appendMessages(thread: ChatThread, messages: List<ChatMessage>) {
+        chatDao.appendMessagesTransaction(thread.toEntity(), messages.map { it.toEntity() })
     }
 
     override suspend fun setThreadPinned(threadId: String, pinned: Boolean) {
@@ -123,8 +127,13 @@ class InMemoryStudyPersistenceRepository(
     }
 
     override suspend fun appendMessage(thread: ChatThread, message: ChatMessage) {
+        appendMessages(thread, listOf(message))
+    }
+
+    override suspend fun appendMessages(thread: ChatThread, messages: List<ChatMessage>) {
         upsertThread(thread)
-        _messages.update { list -> list.filterNot { it.id == message.id } + message }
+        val incomingIds = messages.map { it.id }.toSet()
+        _messages.update { list -> list.filterNot { it.id in incomingIds } + messages }
     }
 
     override suspend fun setThreadPinned(threadId: String, pinned: Boolean) {

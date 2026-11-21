@@ -78,6 +78,7 @@ fun KovaTactileCard(
     lipHeight: Dp = 5.dp,
     borderWidth: Dp = LocalKovaTactileColors.current.cardBorderWidthDp.dp,
     onClick: (() -> Unit)? = null,
+    playTapSound: Boolean = true,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val motion = LocalKovaMotion.current
@@ -87,7 +88,7 @@ fun KovaTactileCard(
     val isPressed by interactionSource.collectIsPressedAsState()
 
     LaunchedEffect(isPressed) {
-        if (isPressed && onClick != null) {
+        if (isPressed && onClick != null && playTapSound) {
             feedback.tap(view)
         }
     }
