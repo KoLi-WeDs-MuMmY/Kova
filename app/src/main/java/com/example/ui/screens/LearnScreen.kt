@@ -19,6 +19,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -285,6 +287,7 @@ private fun LearnChaptersColumn(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DailyQuotaHeaderStrip(
     dailyRemaining: Int,
@@ -304,15 +307,15 @@ private fun DailyQuotaHeaderStrip(
             .fillMaxWidth()
             .testTag("daily_lessons_strip"),
     ) {
-        Row(
+        FlowRow(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
+                .padding(horizontal = 14.dp, vertical = 11.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.Start),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             KovaPillBadge(
-                text = "$dailyRemaining/$dailyMax Daily Lessons Left",
+                text = "$dailyRemaining/$dailyMax Daily Left",
                 leadingIcon = Icons.Filled.Bolt,
                 containerColor = if (dailyRemaining > 0) tactile.coralSoft else tactile.stoneFace,
                 contentColor = if (dailyRemaining > 0) tactile.onCoralSoft else tactile.stoneLabel,
@@ -498,18 +501,21 @@ private fun Tactile3DChapterCard(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Text(
                     text = if (isExpanded) {
                         "Tap card to fold quest trail"
                     } else if (isUnlocked) {
-                        "Tap card to drop down ${chapter.lessons.size} pedestals"
+                        "Tap to open ${chapter.lessons.size} lessons"
                     } else {
                         "Tap to peek at locked trail"
                     },
                     style = KovaCodeTextStyle,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
                 )
 
                 with(sharedTransitionScope) {
@@ -872,11 +878,12 @@ private fun FloatingLessonInfoPill(
         Column(
             modifier = Modifier.padding(horizontal = 13.dp, vertical = 10.dp),
             horizontalAlignment = if (alignEnd) Alignment.End else Alignment.Start,
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp),
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            @OptIn(ExperimentalLayoutApi::class)
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp, if (alignEnd) Alignment.End else Alignment.Start),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Text(
                     text = "${lesson.code} · ${lesson.estimatedMinutes}m",
@@ -886,6 +893,8 @@ private fun FloatingLessonInfoPill(
                         LessonStatus.UNLOCKED -> tactile.cobaltFace
                         LessonStatus.LOCKED -> tactile.stoneLabel
                     },
+                    maxLines = 1,
+                    modifier = Modifier.align(Alignment.CenterVertically),
                 )
                 if (isActive) {
                     KovaPillBadge(
@@ -893,6 +902,7 @@ private fun FloatingLessonInfoPill(
                         containerColor = tactile.coralFace,
                         contentColor = tactile.onCoralFace,
                         borderColor = tactile.coralLip,
+                        modifier = Modifier.align(Alignment.CenterVertically),
                     )
                 } else if (isCompleted) {
                     KovaPillBadge(
@@ -900,6 +910,7 @@ private fun FloatingLessonInfoPill(
                         containerColor = tactile.emeraldSoft,
                         contentColor = tactile.onEmeraldSoft,
                         borderColor = Color.Transparent,
+                        modifier = Modifier.align(Alignment.CenterVertically),
                     )
                 }
             }

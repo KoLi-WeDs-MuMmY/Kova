@@ -41,6 +41,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.R
 import com.example.model.KovaUiState
@@ -71,6 +72,7 @@ fun DeveloperSettingsSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.background,
+        tonalElevation = 0.dp,
         shape = KovaExpressiveShapes.HeroChapterCard,
     ) {
         Column(
@@ -85,7 +87,7 @@ fun DeveloperSettingsSheet(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
@@ -100,7 +102,7 @@ fun DeveloperSettingsSheet(
                     )
                 }
                 KovaPillBadge(
-                    text = "PHASE 1.3",
+                    text = "PHASE 1.4",
                     containerColor = tactile.coralSoft,
                     contentColor = tactile.onCoralSoft,
                     borderColor = tactile.coralFace.copy(alpha = 0.45f),
@@ -325,11 +327,13 @@ private fun ThemeModeChip(
                 style = MaterialTheme.typography.labelLarge,
                 color = contentColor,
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = hexTag,
                 style = KovaCodeTextStyle.copy(fontWeight = FontWeight.Normal),
                 color = contentColor.copy(alpha = 0.85f),
+                maxLines = 1,
             )
         }
     }

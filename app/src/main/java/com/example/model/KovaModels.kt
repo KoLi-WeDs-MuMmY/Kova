@@ -151,7 +151,21 @@ data class ChatMessage(
     val savedNoteId: String? = null,
     val timestampLabel: String,
     val createdAtMillis: Long,
-)
+) {
+    val isPhase3StatusNote: Boolean
+        get() = !isFromUser && content.startsWith(PHASE3_LOCAL_NOTE_PREFIX)
+
+    val displayContent: String
+        get() = if (isPhase3StatusNote) {
+            content.removePrefix(PHASE3_LOCAL_NOTE_PREFIX).trim()
+        } else {
+            content
+        }
+
+    companion object {
+        const val PHASE3_LOCAL_NOTE_PREFIX = "[PHASE3_LOCAL_NOTE] "
+    }
+}
 
 @Immutable
 data class QuotaState(
@@ -161,6 +175,7 @@ data class QuotaState(
     val activeAiPoolRemaining: Int = 12,
     val activeAiPoolMax: Int = 14,
     val spacedRepetitionReserve: Int = 4,
+    val lastQuotaDateIso: String = "",
 )
 
 @Immutable

@@ -10,71 +10,82 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import java.util.concurrent.Executors
 import kotlin.math.PI
+import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.sin
 
 /**
- * Lightweight, zero-asset synthesized UI sound & native HapticFeedbackConstants engine.
- * Synthesizes pleasant Duolingo-style micro-sounds via PCM AudioTrack on a single background thread:
- * - Tap / Toggle: soft woody pop (~48ms)
- * - Pedestal Press: crisp keycap pop (~40ms)
- * - Success / Pass: cheerful rising marimba chime chord (C5 -> E5 -> G5)
- * - Locked / Error: gentle low double-note (E3 -> C3)
+ * Audible, zero-asset synthesized UI sound & native HapticFeedbackConstants engine.
+ *
+ * Uses Android's Media volume channel (USAGE_MEDIA / CONTENT_TYPE_MUSIC) with MODE_STREAM
+ * at 44.1 kHz and smooth cosine attack/release envelopes so sounds play reliably across
+ * Android devices and emulators even in vibrate mode—with zero harsh clicks.
+ *
+ * Sound cues:
+ * - Tap / Toggle / Chip: soft woody pop (~56ms)
+ * - Pedestal Press: crisp keycap pop (~48ms)
+ * - Success / Pass / Sprint Complete: joyful rising 3-note chime (C5 -> E5 -> G5)
+ * - Locked / Review Again: gentle low two-note thud (G3 -> D3)
  */
 object KovaSoundSynthesizer {
-    private const val SAMPLE_RATE = 22050
+    private const val SAMPLE_RATE = 44100
     private val audioExecutor = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "kova-sound-synth").apply { isDaemon = true }
     }
 
     private val tapPopPcm: ShortArray by lazy {
-        synthesizeSweepPop(durationMs = 46, startHz = 660.0, endHz = 420.0, amplitude = 0.24)
+        synthesizeSweepPop(durationMs = 56, startHz = 690.0, endHz = 430.0, amplitude = 0.62)
     }
 
     private val pedestalPopPcm: ShortArray by lazy {
-        synthesizeSweepPop(durationMs = 38, startHz = 540.0, endHz = 360.0, amplitude = 0.22)
+        synthesizeSweepPop(durationMs = 48, startHz = 560.0, endHz = 350.0, amplitude = 0.60)
     }
 
     private val successChimePcm: ShortArray by lazy {
-        // Rising C5 -> E5 -> G5 cheerful marimba arpeggio
+        // Rising C5 -> E5 -> G5 bright marimba arpeggio with gentle shimmer
         synthesizeMarimbaSequence(
             notesHz = doubleArrayOf(523.25, 659.25, 783.99),
-            noteStepMs = 78,
-            noteTailMs = 190,
-            amplitude = 0.28,
+            noteStepMs = 82,
+            noteTailMs = 240,
+            amplitude = 0.68,
+            harmonicGain = 0.28,
         )
     }
 
-    private val errorLowPcm: ShortArray by lazy {
-        // Gentle muted E3 -> C3 double-note
+    private val softThudPcm: ShortArray by lazy {
+        // Gentle muted G3 -> D3 soft low double-note for locked items & "Review Again"
         synthesizeMarimbaSequence(
             notesHz = doubleArrayOf(196.0, 146.83),
-            noteStepMs = 92,
-            noteTailMs = 130,
-            amplitude = 0.24,
+            noteStepMs = 90,
+            noteTailMs = 155,
+            amplitude = 0.64,
+            harmonicGain = 0.14,
         )
     }
 
     fun playTapPop() = playAsync(tapPopPcm)
     fun playPedestalPop() = playAsync(pedestalPopPcm)
     fun playSuccessChime() = playAsync(successChimePcm)
-    fun playErrorLock() = playAsync(errorLowPcm)
+    fun playSoftThud() = playAsync(softThudPcm)
 
     private fun playAsync(pcm: ShortArray) {
         audioExecutor.execute {
             runCatching {
-                val byteSize = pcm.size * 2
                 val minBuf = AudioTrack.getMinBufferSize(
                     SAMPLE_RATE,
                     AudioFormat.CHANNEL_OUT_MONO,
                     AudioFormat.ENCODING_PCM_16BIT,
-                ).coerceAtLeast(byteSize)
+                )
+                if (minBuf <= 0) return@runCatching
+
+                val byteSize = pcm.size * 2
+                val bufferBytes = maxOf(minBuf * 2, byteSize)
 
                 val track = AudioTrack.Builder()
                     .setAudioAttributes(
                         AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .setUsage(AudioAttributes.USAGE_MEDIA)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
                             .build(),
                     )
                     .setAudioFormat(
@@ -84,16 +95,32 @@ object KovaSoundSynthesizer {
                             .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
                             .build(),
                     )
-                    .setBufferSizeInBytes(minBuf)
-                    .setTransferMode(AudioTrack.MODE_STATIC)
+                    .setBufferSizeInBytes(bufferBytes)
+                    .setTransferMode(AudioTrack.MODE_STREAM)
                     .build()
 
                 try {
-                    track.write(pcm, 0, pcm.size)
+                    track.setVolume(1.0f)
                     track.play()
-                    val durationMs = (pcm.size * 1000L) / SAMPLE_RATE + 30L
+                    var offset = 0
+                    while (offset < pcm.size) {
+                        val written = track.write(
+                            pcm,
+                            offset,
+                            pcm.size - offset,
+                            AudioTrack.WRITE_BLOCKING,
+                        )
+                        if (written <= 0) break
+                        offset += written
+                    }
+                    // Write a tiny silent tail so AudioTrack drains completely before stopping
+                    val tailSilence = ShortArray(SAMPLE_RATE / 40)
+                    track.write(tailSilence, 0, tailSilence.size, AudioTrack.WRITE_BLOCKING)
+                    val durationMs = ((pcm.size + tailSilence.size) * 1000L) / SAMPLE_RATE + 25L
                     Thread.sleep(durationMs)
                 } finally {
+                    runCatching { track.pause() }
+                    runCatching { track.flush() }
                     runCatching { track.stop() }
                     runCatching { track.release() }
                 }
@@ -108,16 +135,30 @@ object KovaSoundSynthesizer {
         amplitude: Double,
     ): ShortArray {
         val sampleCount = (SAMPLE_RATE * durationMs) / 1000
+        val attackSamples = (SAMPLE_RATE * 0.005).toInt().coerceAtLeast(1)
+        val releaseSamples = (SAMPLE_RATE * 0.012).toInt().coerceAtLeast(1)
         val buffer = ShortArray(sampleCount)
         var phase = 0.0
         for (i in 0 until sampleCount) {
             val t = i.toDouble() / sampleCount.coerceAtLeast(1)
             val freq = startHz + (endHz - startHz) * t
             phase += 2.0 * PI * freq / SAMPLE_RATE
-            val attack = (i / (SAMPLE_RATE * 0.004)).coerceIn(0.0, 1.0)
-            val decay = exp(-6.2 * t)
-            val sample = (sin(phase) * 0.82 + sin(phase * 2.0) * 0.18) * attack * decay * amplitude
-            buffer[i] = (sample * Short.MAX_VALUE).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
+
+            val attackEnv = if (i < attackSamples) {
+                0.5 * (1.0 - cos(PI * i / attackSamples))
+            } else {
+                1.0
+            }
+            val releaseEnv = if (i >= sampleCount - releaseSamples) {
+                val rem = (sampleCount - 1 - i).coerceAtLeast(0)
+                0.5 * (1.0 - cos(PI * rem / releaseSamples))
+            } else {
+                1.0
+            }
+            val decay = exp(-5.2 * t)
+            val wave = sin(phase) * 0.84 + sin(phase * 2.0) * 0.16
+            val sample = wave * attackEnv * releaseEnv * decay * amplitude
+            buffer[i] = (sample.coerceIn(-0.96, 0.96) * Short.MAX_VALUE).toInt().toShort()
         }
         return buffer
     }
@@ -127,10 +168,13 @@ object KovaSoundSynthesizer {
         noteStepMs: Int,
         noteTailMs: Int,
         amplitude: Double,
+        harmonicGain: Double,
     ): ShortArray {
         val totalMs = (notesHz.size - 1) * noteStepMs + noteTailMs
         val totalSamples = (SAMPLE_RATE * totalMs) / 1000
         val mix = DoubleArray(totalSamples)
+        val attackSec = 0.007
+        val tailReleaseSamples = (SAMPLE_RATE * 0.018).toInt().coerceAtLeast(1)
 
         notesHz.forEachIndexed { idx, freq ->
             val startSample = (SAMPLE_RATE * idx * noteStepMs) / 1000
@@ -139,12 +183,24 @@ object KovaSoundSynthesizer {
                 val target = startSample + i
                 if (target >= totalSamples) break
                 val timeSec = i.toDouble() / SAMPLE_RATE
-                val attack = (timeSec / 0.006).coerceIn(0.0, 1.0)
-                val decay = exp(-14.0 * timeSec)
+                val attack = if (timeSec < attackSec) {
+                    0.5 * (1.0 - cos(PI * timeSec / attackSec))
+                } else {
+                    1.0
+                }
+                val decay = exp(-11.5 * timeSec)
                 val fundamental = sin(2.0 * PI * freq * timeSec)
-                val warmHarmonic = sin(2.0 * PI * (freq * 2.0) * timeSec) * 0.22 * exp(-24.0 * timeSec)
+                val warmHarmonic = sin(2.0 * PI * (freq * 2.0) * timeSec) * harmonicGain * exp(-18.0 * timeSec)
                 mix[target] += (fundamental + warmHarmonic) * attack * decay * amplitude
             }
+        }
+
+        // Apply gentle fade-out at the very end to eliminate any click
+        for (k in 0 until tailReleaseSamples) {
+            val idx = totalSamples - 1 - k
+            if (idx < 0) break
+            val fade = 0.5 * (1.0 - cos(PI * k / tailReleaseSamples))
+            mix[idx] *= fade
         }
 
         return ShortArray(totalSamples) { idx ->
@@ -159,13 +215,13 @@ data class KovaFeedbackController(
 ) {
     fun tap(view: View?) {
         if (!enabled) return
-        view?.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+        performReliableHaptic(view, HapticFeedbackConstants.CLOCK_TICK)
         KovaSoundSynthesizer.playTapPop()
     }
 
     fun pedestalPress(view: View?) {
         if (!enabled) return
-        view?.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+        performReliableHaptic(view, HapticFeedbackConstants.KEYBOARD_TAP)
         KovaSoundSynthesizer.playPedestalPop()
     }
 
@@ -176,7 +232,7 @@ data class KovaFeedbackController(
         } else {
             HapticFeedbackConstants.LONG_PRESS
         }
-        view?.performHapticFeedback(constant)
+        performReliableHaptic(view, constant)
         KovaSoundSynthesizer.playSuccessChime()
     }
 
@@ -187,8 +243,28 @@ data class KovaFeedbackController(
         } else {
             HapticFeedbackConstants.LONG_PRESS
         }
-        view?.performHapticFeedback(constant)
-        KovaSoundSynthesizer.playErrorLock()
+        performReliableHaptic(view, constant)
+        KovaSoundSynthesizer.playSoftThud()
+    }
+
+    fun softThud(view: View?) {
+        if (!enabled) return
+        performReliableHaptic(view, HapticFeedbackConstants.KEYBOARD_TAP)
+        KovaSoundSynthesizer.playSoftThud()
+    }
+
+    @Suppress("DEPRECATION")
+    private fun performReliableHaptic(view: View?, constant: Int) {
+        if (view == null) return
+        runCatching {
+            val fired = view.performHapticFeedback(
+                constant,
+                HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING,
+            )
+            if (!fired) {
+                view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            }
+        }
     }
 }
 

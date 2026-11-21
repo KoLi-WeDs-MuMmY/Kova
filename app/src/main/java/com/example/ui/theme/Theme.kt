@@ -5,6 +5,7 @@ import android.os.Build
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
+import androidx.compose.material3.LocalTonalElevationEnabled
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -17,6 +18,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
@@ -210,6 +212,7 @@ private val WarmDaylightColorScheme = lightColorScheme(
     surfaceContainer = WarmSurfaceHigh,
     surfaceContainerHigh = WarmCardSurface,
     surfaceContainerHighest = WarmSurfaceHighest,
+    surfaceTint = Color.Transparent,
     outline = WarmCardLip,
     outlineVariant = WarmOutline,
 )
@@ -238,6 +241,7 @@ private val WarmDarkColorScheme = darkColorScheme(
     surfaceContainer = WarmDarkSurface,
     surfaceContainerHigh = WarmDarkSurfaceHigh,
     surfaceContainerHighest = WarmDarkSurfaceHighest,
+    surfaceTint = Color.Transparent,
     outline = WarmDarkBorder,
     outlineVariant = WarmDarkBorder,
 )
@@ -251,6 +255,7 @@ private val TrueAmoledColorScheme = WarmDarkColorScheme.copy(
     surfaceContainer = AmoledCardSurface,
     surfaceContainerHigh = AmoledSurfaceHigh,
     surfaceContainerHighest = AmoledSurfaceHighest,
+    surfaceTint = Color.Transparent,
     outline = AmoledOutline,
     outlineVariant = AmoledOutline,
 )
@@ -268,16 +273,22 @@ fun KovaTheme(
     val colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             when (themeMode) {
-                ThemeMode.WARM_DAYLIGHT -> dynamicLightColorScheme(context)
-                ThemeMode.WARM_DARK -> dynamicDarkColorScheme(context)
+                ThemeMode.WARM_DAYLIGHT -> dynamicLightColorScheme(context).copy(
+                    surfaceTint = Color.Transparent,
+                )
+                ThemeMode.WARM_DARK -> dynamicDarkColorScheme(context).copy(
+                    surfaceTint = Color.Transparent,
+                )
                 ThemeMode.AMOLED_BLACK -> dynamicDarkColorScheme(context).copy(
                     background = AmoledTrueBlackBackground,
                     surface = AmoledCardSurface,
+                    surfaceVariant = AmoledSurfaceHigh,
                     surfaceContainerLowest = AmoledTrueBlackBackground,
                     surfaceContainerLow = AmoledSurfaceLow,
                     surfaceContainer = AmoledCardSurface,
                     surfaceContainerHigh = AmoledSurfaceHigh,
                     surfaceContainerHighest = AmoledSurfaceHighest,
+                    surfaceTint = Color.Transparent,
                     outline = AmoledOutline,
                     outlineVariant = AmoledOutline,
                 )
@@ -324,6 +335,7 @@ fun KovaTheme(
         SideEffect {
             val window = (view.context as? Activity)?.window
             if (window != null) {
+                window.decorView.setBackgroundColor(colorScheme.background.toArgb())
                 val controller = WindowCompat.getInsetsController(window, view)
                 controller.isAppearanceLightStatusBars = !isDark
                 controller.isAppearanceLightNavigationBars = !isDark
@@ -334,6 +346,7 @@ fun KovaTheme(
     CompositionLocalProvider(
         LocalKovaMotion provides KovaMotionConfig(enabled = expressiveMotionEnabled),
         LocalKovaTactileColors provides tactileColors,
+        LocalTonalElevationEnabled provides false,
     ) {
         MaterialTheme(
             colorScheme = colorScheme,

@@ -6,10 +6,17 @@ import androidx.lifecycle.ViewModelProvider
 import com.example.data.LearningRepository
 import com.example.data.LocalLessonTutorEngine
 import com.example.data.MockLearningRepository
+import com.example.data.local.FileKovaAppStateStore
+import com.example.data.local.InMemoryKovaAppStateStore
 import com.example.data.local.InMemoryStudyPersistenceRepository
+import com.example.data.local.KovaAppStateStore
 import com.example.data.local.KovaDatabase
+import com.example.data.local.PersistedAppState
+import com.example.data.local.PersistedChapterState
+import com.example.data.local.PersistedLessonState
 import com.example.data.local.RoomStudyPersistenceRepository
 import com.example.data.local.StudyPersistenceRepository
+import com.example.data.local.currentLocalDateIso
 import com.example.model.Chapter
 import com.example.model.ChatMessage
 import com.example.model.ChatThread
@@ -19,6 +26,8 @@ import com.example.model.HighlightCategory
 import com.example.model.HighlightNote
 import com.example.model.KovaTab
 import com.example.model.KovaUiState
+import com.example.model.LessonReturnEvent
+import com.example.model.LessonSplitRatio
 import com.example.model.LessonStatus
 import com.example.model.LockedShakeEvent
 import com.example.model.NoteSource
@@ -41,12 +50,18 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class KovaViewModel(
     private val repository: LearningRepository = MockLearningRepository(),
     private val persistence: StudyPersistenceRepository = InMemoryStudyPersistenceRepository(repository),
+    private val appStateStore: KovaAppStateStore = InMemoryKovaAppStateStore(),
     private val tutorEngine: LocalLessonTutorEngine = LocalLessonTutorEngine(),
+    private val dateProvider: () -> String = ::currentLocalDateIso,
     private val workDispatcher: CoroutineDispatcher = Dispatchers.Unconfined,
     private val timerDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : ViewModel() {
@@ -58,12 +73,19 @@ class KovaViewModel(
     val uiState: StateFlow<KovaUiState> = _uiState.asStateFlow()
 
     init {
+        // Persist immediately if date rollover or first-launch snapshot creation occurred
+        persistSnapshot(_uiState.value)
+
         vmScope.launch {
             persistence.ensureSeeded(repository)
         }
 
         vmScope.launch {
             persistence.chatThreads.collect { threads ->
+                if (threads.isEmpty() && _uiState.value.chatThreads.isNotEmpty()) {
+                    // Wait for seed/write rather than flashing empty if optimistic thread exists
+                    return@collect
+                }
                 _uiState.update { state ->
                     val currentActive = state.activeThreadId
                     val resolvedActive = when {
@@ -83,10 +105,27 @@ class KovaViewModel(
                 .map { it.activeThreadId }
                 .distinctUntilChanged()
                 .flatMapLatest { threadId ->
-                    if (threadId == null) flowOf(emptyList()) else persistence.observeMessages(threadId)
+                    if (threadId == null) {
+                        flowOf(Pair<String?, List<ChatMessage>>(null, emptyList()))
+                    } else {
+                        persistence.observeMessages(threadId).map { msgs -> Pair(threadId, msgs) }
+                    }
                 }
-                .collect { messages ->
-                    _uiState.update { it.copy(activeThreadMessages = messages) }
+                .collect { (threadId, messages) ->
+                    _uiState.update { state ->
+                        if (threadId == null) {
+                            state.copy(activeThreadMessages = emptyList())
+                        } else if (
+                            messages.isEmpty() &&
+                            state.activeThreadId == threadId &&
+                            state.activeThreadMessages.any { it.threadId == threadId }
+                        ) {
+                            // Keep optimistic messages until Room finishes committing the insert
+                            state
+                        } else {
+                            state.copy(activeThreadMessages = messages)
+                        }
+                    }
                 }
         }
 
@@ -115,21 +154,179 @@ class KovaViewModel(
 
     override fun onCleared() {
         sprintTimerJob?.cancel()
+        persistSnapshot(_uiState.value)
         vmScope.cancel()
         super.onCleared()
     }
 
     private fun createInitialState(): KovaUiState {
+        val todayIso = dateProvider()
+        val baseChapters = repository.getInitialChapters()
+        val baseQuota = repository.getInitialQuotaState().copy(lastQuotaDateIso = todayIso)
         val seedThreads = repository.getInitialChatThreads()
+        val saved = appStateStore.load()
+
+        if (saved == null) {
+            return KovaUiState(
+                selectedTab = KovaTab.LEARN,
+                chapters = baseChapters,
+                highlights = repository.getInitialHighlights(),
+                spacedRepetitionItems = repository.getInitialSpacedRepetitionItems(),
+                chatThreads = seedThreads,
+                activeThreadId = seedThreads.firstOrNull()?.id,
+                quota = baseQuota,
+            )
+        }
+
+        val restoredTheme = runCatching { ThemeMode.valueOf(saved.themeModeName) }
+            .getOrDefault(ThemeMode.WARM_DAYLIGHT)
+        val restoredSplitRatio = runCatching { LessonSplitRatio.valueOf(saved.lessonSplitRatioName) }
+            .getOrDefault(LessonSplitRatio.RATIO_75_25)
+
+        val hydratedChapters = baseChapters.map { chapter ->
+            val savedChapter = saved.chapterStates[chapter.id]
+            val hydratedLessons = chapter.lessons.map { lesson ->
+                val savedLesson = saved.lessonStates[lesson.id]
+                if (savedLesson != null) {
+                    val status = runCatching { LessonStatus.valueOf(savedLesson.statusName) }
+                        .getOrDefault(lesson.status)
+                    lesson.copy(
+                        status = status,
+                        passScorePercent = savedLesson.passScorePercent,
+                    )
+                } else {
+                    lesson
+                }
+            }
+            if (savedChapter != null) {
+                chapter.copy(
+                    isUnlocked = savedChapter.isUnlocked,
+                    lockReason = if (savedChapter.isUnlocked) null else chapter.lockReason,
+                    lessons = hydratedLessons,
+                    assignment = chapter.assignment.copy(
+                        isUnlocked = savedChapter.assignmentUnlocked,
+                        isCompleted = savedChapter.assignmentCompleted,
+                    ),
+                )
+            } else {
+                chapter.copy(lessons = hydratedLessons)
+            }
+        }
+
+        val isNewCalendarDay = saved.lastQuotaDateIso != todayIso
+        val effectiveDailyRemaining = when {
+            saved.devUnlockAllOverride -> baseQuota.dailyLessonsMax
+            isNewCalendarDay -> baseQuota.dailyLessonsMax
+            else -> saved.dailyLessonsRemaining.coerceIn(0, baseQuota.dailyLessonsMax)
+        }
+        val effectiveAiPool = if (isNewCalendarDay) {
+            baseQuota.activeAiPoolMax
+        } else {
+            saved.activeAiPoolRemaining.coerceIn(0, baseQuota.activeAiPoolMax)
+        }
+
+        val restoredQuota = baseQuota.copy(
+            dailyLessonsRemaining = effectiveDailyRemaining,
+            activeAiPoolRemaining = effectiveAiPool,
+            lastQuotaDateIso = todayIso,
+        )
+
+        val restoredSprint = FlashcardSprintState(
+            currentIndex = saved.sprintCurrentIndex.coerceAtLeast(0),
+            gotItCount = saved.sprintGotItCount.coerceAtLeast(0),
+            reviewAgainCount = saved.sprintReviewAgainCount.coerceAtLeast(0),
+        )
+
         return KovaUiState(
             selectedTab = KovaTab.LEARN,
-            chapters = repository.getInitialChapters(),
+            chapters = hydratedChapters,
+            expandedChapterIds = saved.expandedChapterIds.ifEmpty { setOf("ch_1") },
             highlights = repository.getInitialHighlights(),
             spacedRepetitionItems = repository.getInitialSpacedRepetitionItems(),
             chatThreads = seedThreads,
-            activeThreadId = seedThreads.firstOrNull()?.id,
-            quota = repository.getInitialQuotaState(),
+            activeThreadId = saved.activeThreadId ?: seedThreads.firstOrNull()?.id,
+            chatComposerText = saved.chatComposerDraft,
+            flashcardSprint = restoredSprint,
+            quota = restoredQuota,
+            lessonSplitRatio = restoredSplitRatio,
+            themeMode = restoredTheme,
+            dynamicColorEnabled = saved.dynamicColorEnabled,
+            expressiveMotionEnabled = saved.expressiveMotionEnabled,
+            soundAndHapticsEnabled = saved.soundAndHapticsEnabled,
+            devUnlockAllOverride = saved.devUnlockAllOverride,
         )
+    }
+
+    private fun persistSnapshot(state: KovaUiState = _uiState.value) {
+        val todayIso = state.quota.lastQuotaDateIso.ifBlank { dateProvider() }
+        val lessonStates = buildMap {
+            state.chapters.forEach { chapter ->
+                chapter.lessons.forEach { lesson ->
+                    put(
+                        lesson.id,
+                        PersistedLessonState(
+                            statusName = lesson.status.name,
+                            passScorePercent = lesson.passScorePercent,
+                        ),
+                    )
+                }
+            }
+        }
+        val chapterStates = buildMap {
+            state.chapters.forEach { chapter ->
+                put(
+                    chapter.id,
+                    PersistedChapterState(
+                        isUnlocked = chapter.isUnlocked,
+                        assignmentUnlocked = chapter.assignment.isUnlocked,
+                        assignmentCompleted = chapter.assignment.isCompleted,
+                    ),
+                )
+            }
+        }
+        appStateStore.save(
+            PersistedAppState(
+                themeModeName = state.themeMode.name,
+                dynamicColorEnabled = state.dynamicColorEnabled,
+                expressiveMotionEnabled = state.expressiveMotionEnabled,
+                soundAndHapticsEnabled = state.soundAndHapticsEnabled,
+                devUnlockAllOverride = state.devUnlockAllOverride,
+                lessonSplitRatioName = state.lessonSplitRatio.name,
+                expandedChapterIds = state.expandedChapterIds,
+                dailyLessonsRemaining = state.quota.dailyLessonsRemaining,
+                activeAiPoolRemaining = state.quota.activeAiPoolRemaining,
+                lastQuotaDateIso = todayIso,
+                activeThreadId = state.activeThreadId,
+                chatComposerDraft = state.chatComposerText,
+                sprintGotItCount = state.flashcardSprint.gotItCount,
+                sprintReviewAgainCount = state.flashcardSprint.reviewAgainCount,
+                sprintCurrentIndex = state.flashcardSprint.currentIndex,
+                lessonStates = lessonStates,
+                chapterStates = chapterStates,
+            ),
+        )
+    }
+
+    fun checkDailyRollover() {
+        val todayIso = dateProvider()
+        var rolledOver = false
+        _uiState.update { state ->
+            if (state.quota.lastQuotaDateIso != todayIso) {
+                rolledOver = true
+                state.copy(
+                    quota = state.quota.copy(
+                        dailyLessonsRemaining = state.quota.dailyLessonsMax,
+                        activeAiPoolRemaining = state.quota.activeAiPoolMax,
+                        lastQuotaDateIso = todayIso,
+                    ),
+                )
+            } else {
+                state
+            }
+        }
+        if (rolledOver) {
+            persistSnapshot()
+        }
     }
 
     fun selectTab(tab: KovaTab) {
@@ -150,9 +347,11 @@ class KovaViewModel(
             }
             state.copy(expandedChapterIds = updated)
         }
+        persistSnapshot()
     }
 
     fun openLesson(lessonId: String) {
+        checkDailyRollover()
         val current = _uiState.value
         val lesson = current.findLesson(lessonId) ?: return
         val chapter = current.findChapter(lesson.chapterId) ?: return
@@ -226,7 +425,7 @@ class KovaViewModel(
         _uiState.update { state ->
             val currentDetail = state.activeDetail
             val returnEvent = if (currentDetail is DetailDestination.LessonDetail) {
-                com.example.model.LessonReturnEvent(
+                LessonReturnEvent(
                     lessonId = currentDetail.lessonId,
                     wasNewlyCompleted = state.newlyCompletedLessonInSession == currentDetail.lessonId,
                     nonce = System.nanoTime(),
@@ -246,9 +445,11 @@ class KovaViewModel(
         _uiState.update { state ->
             state.copy(lessonSplitRatio = state.lessonSplitRatio.next())
         }
+        persistSnapshot()
     }
 
     fun passLessonMockTest(lessonId: String, scorePercent: Int = 85) {
+        checkDailyRollover()
         _uiState.update { state ->
             val targetLesson = state.findLesson(lessonId) ?: return@update state
             val wasAlreadyCompleted = targetLesson.status == LessonStatus.COMPLETED
@@ -314,6 +515,7 @@ class KovaViewModel(
                 snackbarMessage = feedback,
             )
         }
+        persistSnapshot()
     }
 
     fun completeAssignment(assignmentId: String) {
@@ -352,6 +554,7 @@ class KovaViewModel(
                 snackbarMessage = message,
             )
         }
+        persistSnapshot()
     }
 
     private fun unlockChapter(chapter: Chapter): Chapter {
@@ -370,11 +573,12 @@ class KovaViewModel(
     }
 
     // -------------------------------------------------------------------------
-    // Phase 2 · AI Workspace (Room-persisted Chat History + Save to Notes)
+    // AI Workspace (Room-persisted Chat History + Immediate Sent Bubbles)
     // -------------------------------------------------------------------------
 
     fun selectChatThread(threadId: String) {
         _uiState.update { it.copy(activeThreadId = threadId) }
+        persistSnapshot()
     }
 
     fun createNewLessonThread() {
@@ -383,6 +587,7 @@ class KovaViewModel(
         val lessonCode = activeLesson?.code ?: "1.1"
         val lessonTitle = activeLesson?.title ?: "Variables & Boxes"
         val now = System.currentTimeMillis()
+        val timeLabel = formatClockTime(now)
         val threadId = "thread_$now"
 
         val newThread = ChatThread(
@@ -391,7 +596,7 @@ class KovaViewModel(
             lessonCode = lessonCode,
             lessonTitle = lessonTitle,
             isPinned = false,
-            updatedAtLabel = "Just now",
+            updatedAtLabel = timeLabel,
             updatedAtMillis = now,
             previewSnippet = "Scoped to Lesson $lessonCode. Ask anything or tap a quick prompt.",
         )
@@ -401,13 +606,20 @@ class KovaViewModel(
             threadId = threadId,
             isFromUser = false,
             content = "Scoped Tutor ready for Lesson $lessonCode ($lessonTitle). " +
-                "Ask a question or pick a quick prompt chip below—every answer can be saved straight to your Revision Binder.",
+                "Ask a question or pick a quick prompt chip below—your messages save locally to this device.",
             savedNoteId = null,
-            timestampLabel = "Just now",
+            timestampLabel = timeLabel,
             createdAtMillis = now,
         )
 
-        _uiState.update { it.copy(activeThreadId = threadId) }
+        _uiState.update { current ->
+            current.copy(
+                chatThreads = listOf(newThread) + current.chatThreads.filterNot { it.id == threadId },
+                activeThreadId = threadId,
+                activeThreadMessages = listOf(welcomeMessage),
+            )
+        }
+        persistSnapshot()
         vmScope.launch {
             persistence.appendMessage(newThread, welcomeMessage)
         }
@@ -435,37 +647,49 @@ class KovaViewModel(
             persistence.deleteThread(threadId)
         }
         _uiState.update { state ->
+            val remaining = state.chatThreads.filterNot { it.id == threadId }
             val nextId = if (state.activeThreadId == threadId) {
-                state.chatThreads.firstOrNull { it.id != threadId }?.id
+                remaining.firstOrNull()?.id
             } else {
                 state.activeThreadId
             }
             state.copy(
+                chatThreads = remaining,
                 activeThreadId = nextId,
+                activeThreadMessages = if (state.activeThreadId == threadId) emptyList() else state.activeThreadMessages,
                 snackbarMessage = "Chat thread deleted.",
             )
         }
+        persistSnapshot()
     }
 
     fun updateChatComposerText(text: String) {
         _uiState.update { it.copy(chatComposerText = text) }
+        persistSnapshot()
     }
 
     /**
-     * Fills the editable composer box so the learner can refine before sending.
+     * Fills the editable composer box so the learner can refine before sending,
+     * and persists the draft immediately across restarts.
      */
     fun insertQuickPrompt(promptTemplate: String) {
         val activeCode = _uiState.value.activeLesson?.code ?: "1.1"
         val filled = "$promptTemplate (Lesson $activeCode)"
         _uiState.update { it.copy(chatComposerText = filled) }
+        persistSnapshot()
     }
 
+    /**
+     * Immediately appends the user's message bubble + a subtle Phase 3 local status note
+     * to the active thread, clears the composer, and persists both to Room + disk snapshot.
+     */
     fun sendChatMessage() {
         val state = _uiState.value
         val prompt = state.chatComposerText.trim()
         if (prompt.isEmpty()) return
 
         val now = System.currentTimeMillis()
+        val timeLabel = formatClockTime(now)
         val activeLesson = state.activeLesson
         val currentThread = state.activeThread ?: ChatThread(
             id = "thread_$now",
@@ -473,15 +697,10 @@ class KovaViewModel(
             lessonCode = activeLesson?.code ?: "1.1",
             lessonTitle = activeLesson?.title ?: "Variables & Boxes",
             isPinned = false,
-            updatedAtLabel = "Just now",
+            updatedAtLabel = timeLabel,
             updatedAtMillis = now,
             previewSnippet = prompt,
         )
-
-        val matchingLesson = state.chapters
-            .flatMap { it.lessons }
-            .firstOrNull { it.code == currentThread.lessonCode }
-            ?: activeLesson
 
         val userMsg = ChatMessage(
             id = "msg_${now}_u",
@@ -489,46 +708,51 @@ class KovaViewModel(
             isFromUser = true,
             content = prompt,
             savedNoteId = null,
-            timestampLabel = "Just now",
+            timestampLabel = timeLabel,
             createdAtMillis = now,
         )
 
-        val replyText = tutorEngine.generateScopedReply(
-            prompt = prompt,
-            lessonCode = currentThread.lessonCode,
-            lessonTitle = currentThread.lessonTitle,
-            lesson = matchingLesson,
-        )
-
-        val aiMsg = ChatMessage(
-            id = "msg_${now + 1}_ai",
+        val phase3StatusMsg = ChatMessage(
+            id = "msg_${now + 1}_status",
             threadId = currentThread.id,
             isFromUser = false,
-            content = replyText,
+            content = "${ChatMessage.PHASE3_LOCAL_NOTE_PREFIX}" +
+                "Live Gemini replies activate in Phase 3 — your message is saved locally",
             savedNoteId = null,
-            timestampLabel = "Just now",
+            timestampLabel = timeLabel,
             createdAtMillis = now + 1,
         )
 
         val updatedThread = currentThread.copy(
-            updatedAtLabel = "Just now",
+            updatedAtLabel = timeLabel,
             updatedAtMillis = now + 1,
-            previewSnippet = replyText.lineSequence().firstOrNull()?.take(90) ?: prompt,
+            previewSnippet = prompt.take(90),
         )
 
-        _uiState.update {
-            it.copy(
+        _uiState.update { current ->
+            val updatedThreads = (listOf(updatedThread) + current.chatThreads.filterNot { it.id == updatedThread.id })
+                .sortedWith(compareByDescending<ChatThread> { it.isPinned }.thenByDescending { it.updatedAtMillis })
+            val baseMessages = if (current.activeThreadId == updatedThread.id) {
+                current.activeThreadMessages
+            } else {
+                emptyList()
+            }
+            current.copy(
+                chatThreads = updatedThreads,
                 activeThreadId = updatedThread.id,
+                activeThreadMessages = baseMessages + userMsg + phase3StatusMsg,
                 chatComposerText = "",
-                quota = it.quota.copy(
-                    activeAiPoolRemaining = (it.quota.activeAiPoolRemaining - 1).coerceAtLeast(0),
+                quota = current.quota.copy(
+                    activeAiPoolRemaining = (current.quota.activeAiPoolRemaining - 1).coerceAtLeast(0),
                 ),
             )
         }
 
+        persistSnapshot()
+
         vmScope.launch {
             persistence.appendMessage(updatedThread, userMsg)
-            persistence.appendMessage(updatedThread, aiMsg)
+            persistence.appendMessage(updatedThread, phase3StatusMsg)
         }
     }
 
@@ -539,12 +763,12 @@ class KovaViewModel(
         val now = System.currentTimeMillis()
         val noteId = "note_ai_$now"
 
-        val lines = message.content.lines().filter { it.isNotBlank() }
-        val snippet = lines.firstOrNull()?.take(120) ?: message.content.take(120)
+        val lines = message.displayContent.lines().filter { it.isNotBlank() }
+        val snippet = lines.firstOrNull()?.take(120) ?: message.displayContent.take(120)
         val details = if (lines.size > 1) {
             lines.drop(1).joinToString("\n")
         } else {
-            message.content
+            message.displayContent
         }
 
         val note = HighlightNote(
@@ -555,7 +779,7 @@ class KovaViewModel(
             highlightedSnippet = snippet,
             learnerNote = details,
             source = NoteSource.AI_TUTOR,
-            savedAtLabel = "Just now · AI Tutor",
+            savedAtLabel = "${formatClockTime(now)} · AI Tutor",
             createdAtMillis = now,
         )
 
@@ -575,7 +799,7 @@ class KovaViewModel(
     }
 
     // -------------------------------------------------------------------------
-    // Phase 2 · Revision Study Binder, Mastery Radar & 60s 3D Flashcards
+    // Revision Study Binder, Mastery Radar & 60s 3D Flashcards
     // -------------------------------------------------------------------------
 
     fun selectBinderTab(tab: RevisionBinderTab) {
@@ -672,6 +896,7 @@ class KovaViewModel(
                 ),
             )
         }
+        persistSnapshot()
         if (autoStart) {
             launchSprintCountdown()
         }
@@ -696,6 +921,7 @@ class KovaViewModel(
                             ),
                         )
                     }
+                    persistSnapshot()
                     break
                 } else {
                     _uiState.update {
@@ -795,6 +1021,7 @@ class KovaViewModel(
                 },
             )
         }
+        persistSnapshot()
 
         vmScope.launch {
             persistence.upsertSpacedRepetitionItem(updatedCard)
@@ -815,18 +1042,22 @@ class KovaViewModel(
 
     fun setThemeMode(mode: ThemeMode) {
         _uiState.update { it.copy(themeMode = mode) }
+        persistSnapshot()
     }
 
     fun setDynamicColorEnabled(enabled: Boolean) {
         _uiState.update { it.copy(dynamicColorEnabled = enabled) }
+        persistSnapshot()
     }
 
     fun setExpressiveMotionEnabled(enabled: Boolean) {
         _uiState.update { it.copy(expressiveMotionEnabled = enabled) }
+        persistSnapshot()
     }
 
     fun setSoundAndHapticsEnabled(enabled: Boolean) {
         _uiState.update { it.copy(soundAndHapticsEnabled = enabled) }
+        persistSnapshot()
     }
 
     fun setDevUnlockAllOverride(enabled: Boolean) {
@@ -859,26 +1090,46 @@ class KovaViewModel(
                 )
             }
         }
+        persistSnapshot()
     }
 
+    /**
+     * Resets lessons, quota, chats, notes, and flashcard progress while preserving
+     * Theme Mode, Dynamic Color, Motion, and Sound & Haptics preferences.
+     */
     fun resetDemoProgress() {
         sprintTimerJob?.cancel()
         sprintTimerJob = null
         vmScope.launch {
             persistence.resetAll(repository)
         }
+        val todayIso = dateProvider()
+        val seedThreads = repository.getInitialChatThreads()
         _uiState.update { current ->
-            createInitialState().copy(
+            KovaUiState(
+                selectedTab = KovaTab.LEARN,
+                chapters = repository.getInitialChapters(),
+                expandedChapterIds = setOf("ch_1"),
+                highlights = repository.getInitialHighlights(),
+                spacedRepetitionItems = repository.getInitialSpacedRepetitionItems(),
+                chatThreads = seedThreads,
+                activeThreadId = seedThreads.firstOrNull()?.id,
+                activeThreadMessages = repository.getInitialChatMessages()
+                    .filter { it.threadId == seedThreads.firstOrNull()?.id },
+                chatComposerText = "",
+                quota = repository.getInitialQuotaState().copy(lastQuotaDateIso = todayIso),
                 themeMode = current.themeMode,
                 dynamicColorEnabled = current.dynamicColorEnabled,
                 expressiveMotionEnabled = current.expressiveMotionEnabled,
                 soundAndHapticsEnabled = current.soundAndHapticsEnabled,
                 lessonSplitRatio = current.lessonSplitRatio,
+                devUnlockAllOverride = false,
                 isFloatingPreview = current.isFloatingPreview,
                 isSettingsOpen = false,
-                snackbarMessage = "Study data & mock progress reset.",
+                snackbarMessage = "Study progress, chats & notes reset. Theme and sound kept.",
             )
         }
+        persistSnapshot()
     }
 
     fun setSettingsOpen(open: Boolean) {
@@ -900,6 +1151,9 @@ class KovaViewModel(
     fun consumeSnackbar() {
         _uiState.update { it.copy(snackbarMessage = null) }
     }
+
+    private fun formatClockTime(millis: Long): String =
+        SimpleDateFormat("HH:mm", Locale.US).format(Date(millis))
 }
 
 class KovaViewModelFactory(
@@ -907,16 +1161,22 @@ class KovaViewModelFactory(
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        val db = KovaDatabase.getInstance(context.applicationContext)
+        val appContext = context.applicationContext
+        val db = KovaDatabase.getInstance(appContext)
         val repository = MockLearningRepository()
         val persistence = RoomStudyPersistenceRepository(
             chatDao = db.chatDao(),
             revisionDao = db.revisionDao(),
         )
+        val appStateStore = FileKovaAppStateStore(
+            File(appContext.filesDir, FileKovaAppStateStore.DEFAULT_FILE_NAME),
+        )
         return KovaViewModel(
             repository = repository,
             persistence = persistence,
+            appStateStore = appStateStore,
             tutorEngine = LocalLessonTutorEngine(),
+            dateProvider = ::currentLocalDateIso,
             workDispatcher = Dispatchers.IO,
             timerDispatcher = Dispatchers.Default,
         ) as T

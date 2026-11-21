@@ -70,6 +70,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -124,6 +125,11 @@ fun KovaApp(
         KovaFeedbackController(enabled = uiState.soundAndHapticsEnabled)
     }
     val view = LocalView.current
+
+    // Ensure daily lesson quota rolls over cleanly on a new calendar day
+    LaunchedEffect(Unit) {
+        viewModel.checkDailyRollover()
+    }
 
     // Gentle low note + REJECT haptic whenever a locked node shakes
     LaunchedEffect(uiState.lockedShakeEvent?.nonce) {
@@ -480,6 +486,7 @@ private fun KovaTopBar(
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Row(
+            modifier = Modifier.weight(1f),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
@@ -510,7 +517,7 @@ private fun KovaTopBar(
                 }
             }
 
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -519,6 +526,8 @@ private fun KovaTopBar(
                         text = stringResource(R.string.app_name),
                         style = MaterialTheme.typography.headlineSmall,
                         color = MaterialTheme.colorScheme.onBackground,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                     if (devOverrideEnabled) {
                         Surface(
@@ -530,6 +539,8 @@ private fun KovaTopBar(
                                 text = "DEV",
                                 style = KovaCodeTextStyle.copy(fontWeight = FontWeight.Bold),
                                 color = tactile.onCoralSoft,
+                                maxLines = 1,
+                                softWrap = false,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                             )
                         }
@@ -540,6 +551,8 @@ private fun KovaTopBar(
                         text = stringResource(R.string.brand_subtitle),
                         style = KovaCodeTextStyle,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
@@ -584,6 +597,8 @@ private fun KovaTopBar(
                         },
                         style = MaterialTheme.typography.labelLarge,
                         color = if (isFloatingPreview) tactile.onCobaltFace else MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        softWrap = false,
                     )
                 }
             }
@@ -666,11 +681,11 @@ private fun KovaTactileBottomNavBar(
                     ) {
                         Row(
                             modifier = Modifier.padding(
-                                horizontal = if (selected) 14.dp else 10.dp,
+                                horizontal = if (selected) 12.dp else 8.dp,
                                 vertical = 8.dp,
                             ),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(5.dp),
                         ) {
                             Icon(
                                 imageVector = if (selected) dest.selectedIcon else dest.unselectedIcon,
@@ -680,7 +695,7 @@ private fun KovaTactileBottomNavBar(
                                 } else {
                                     MaterialTheme.colorScheme.onSurfaceVariant
                                 },
-                                modifier = Modifier.size(21.dp),
+                                modifier = Modifier.size(20.dp),
                             )
                             if (selected || !isCompactFloating) {
                                 Text(
@@ -693,6 +708,9 @@ private fun KovaTactileBottomNavBar(
                                     } else {
                                         MaterialTheme.colorScheme.onSurfaceVariant
                                     },
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
                                 )
                             }
                         }
@@ -711,7 +729,7 @@ private fun KovaNavigationRail(
     val tactile = LocalKovaTactileColors.current
 
     NavigationRail(
-        containerColor = tactile.cardFace,
+        containerColor = if (tactile.isAmoled) Color(0xFF0A0A0A) else tactile.cardFace,
         contentColor = MaterialTheme.colorScheme.onSurface,
         modifier = Modifier
             .fillMaxHeight()

@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.BookmarkAdd
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.DeleteOutline
@@ -344,6 +345,7 @@ private fun AiChatMainPane(
         }
 
         // Scrollable Message Stream
+        val activeLessonCode = activeThread?.lessonCode ?: uiState.activeLesson?.code ?: "1.1"
         LazyColumn(
             state = listState,
             modifier = Modifier
@@ -356,6 +358,7 @@ private fun AiChatMainPane(
             items(items = messages, key = { it.id }) { msg ->
                 AiChatBubble(
                     message = msg,
+                    activeLessonCode = activeLessonCode,
                     onSaveToNotes = { category -> onSaveMessageToNotes(msg.id, category) },
                 )
             }
@@ -563,6 +566,7 @@ private fun parseTutorContentSegments(raw: String): List<TutorContentSegment> {
 @Composable
 private fun AiChatBubble(
     message: ChatMessage,
+    activeLessonCode: String,
     onSaveToNotes: (HighlightCategory) -> Unit,
 ) {
     val tactile = LocalKovaTactileColors.current
@@ -582,28 +586,86 @@ private fun AiChatBubble(
                 shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 20.dp, bottomEnd = 6.dp),
                 color = tactile.cobaltFace,
                 border = BorderStroke(1.25.dp, tactile.cobaltLip),
-                modifier = Modifier.widthIn(max = 310.dp),
+                modifier = Modifier
+                    .widthIn(max = 315.dp)
+                    .testTag("ai_user_bubble_${message.id}"),
             ) {
                 Column(
-                    modifier = Modifier.padding(horizontal = 15.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(5.dp),
+                    modifier = Modifier.padding(horizontal = 15.dp, vertical = 11.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     Text(
                         text = message.content,
                         style = MaterialTheme.typography.bodyMedium,
                         color = tactile.onCobaltFace,
                     )
-                    Text(
-                        text = message.timestampLabel,
-                        style = KovaCodeTextStyle,
-                        color = tactile.onCobaltFace.copy(alpha = 0.78f),
+                    Row(
                         modifier = Modifier.align(Alignment.End),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    ) {
+                        Surface(
+                            shape = KovaExpressiveShapes.Pill,
+                            color = tactile.cobaltLip.copy(alpha = 0.65f),
+                        ) {
+                            Text(
+                                text = "L$activeLessonCode",
+                                style = KovaCodeTextStyle.copy(fontWeight = FontWeight.Bold),
+                                color = tactile.onCobaltFace,
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                            )
+                        }
+                        Text(
+                            text = message.timestampLabel,
+                            style = KovaCodeTextStyle,
+                            color = tactile.onCobaltFace.copy(alpha = 0.82f),
+                        )
+                    }
+                }
+            }
+        } else if (message.isPhase3StatusNote) {
+            // Subtle, honest Phase 3 local-save status note beneath the user's bubble
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                border = BorderStroke(1.dp, tactile.cardOutline),
+                modifier = Modifier
+                    .fillMaxWidth(0.92f)
+                    .testTag("ai_phase3_status_${message.id}"),
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(9.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.CheckCircle,
+                        contentDescription = null,
+                        tint = tactile.emeraldFace,
+                        modifier = Modifier.size(16.dp),
                     )
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Text(
+                            text = "SAVED LOCALLY · PHASE 3 READY",
+                            style = KovaCodeTextStyle.copy(fontWeight = FontWeight.Bold),
+                            color = tactile.emeraldFace,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = message.displayContent,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         } else {
             val segments = remember(message.id, message.content) {
-                parseTutorContentSegments(message.content)
+                parseTutorContentSegments(message.displayContent)
             }
 
             KovaTactileCard(

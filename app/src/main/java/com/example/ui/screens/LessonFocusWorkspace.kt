@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -54,6 +56,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.R
 import com.example.model.Lesson
@@ -317,6 +320,8 @@ private fun PortraitTopProgressBar(
                     text = splitRatio.badgeLabel,
                     style = KovaCodeTextStyle.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    softWrap = false,
                 )
             }
         }
@@ -438,10 +443,11 @@ private fun LessonContentPane(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         // Focused Lesson Header (no global top bar chrome)
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            @OptIn(ExperimentalLayoutApi::class)
+            FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 KovaPillBadge(
                     text = "LESSON ${lesson.code} · ${lesson.estimatedMinutes}M",
@@ -667,10 +673,11 @@ private fun EmptyIdePlaceholderPane(
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Row(
+                    modifier = Modifier.weight(1f),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(7.dp),
                 ) {
@@ -684,6 +691,8 @@ private fun EmptyIdePlaceholderPane(
                         text = stringResource(R.string.lesson_ide_header),
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
 
@@ -696,12 +705,13 @@ private fun EmptyIdePlaceholderPane(
             }
 
             // Clean dashed empty workspace canvas (intentionally no fake editor lines)
-            Box(
+            BoxWithConstraints(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
                 contentAlignment = Alignment.Center,
             ) {
+                val isCompactHeight = maxHeight < 92.dp
                 val dashColor = tactile.cardOutline
                 Canvas(modifier = Modifier.matchParentSize()) {
                     drawRoundRect(
@@ -717,21 +727,27 @@ private fun EmptyIdePlaceholderPane(
                 }
 
                 Column(
-                    modifier = Modifier.padding(horizontal = 16.dp),
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Text(
                         text = "IDE Pane · ${splitRatio.badgeLabel}",
                         style = KovaCodeTextStyle.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
-                    Text(
-                        text = stringResource(R.string.lesson_ide_empty_hint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
-                        textAlign = TextAlign.Center,
-                    )
+                    if (!isCompactHeight) {
+                        Text(
+                            text = stringResource(R.string.lesson_ide_empty_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
+                            textAlign = TextAlign.Center,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
             }
         }

@@ -69,9 +69,9 @@ fun AmbientMaterialCanvas(
     }
 
     val baseAlpha = when {
-        tactile.isAmoled -> 0.052f
-        tactile.isDarkSurface -> 0.062f
-        else -> 0.07f
+        tactile.isAmoled -> 0.028f
+        tactile.isDarkSurface -> 0.058f
+        else -> 0.068f
     }
 
     val emeraldTint = tactile.emeraldFace.copy(alpha = baseAlpha)

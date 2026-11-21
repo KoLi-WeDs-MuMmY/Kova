@@ -9,6 +9,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -32,6 +34,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -80,6 +83,13 @@ fun FlashcardSprintView(
     val view = LocalView.current
     val density = LocalDensity.current.density
 
+    // Celebratory rising chime when the 60s sprint completes (deck finished or timer hits 0)
+    LaunchedEffect(sprint.isSummaryVisible) {
+        if (sprint.isSummaryVisible) {
+            feedback.success(view)
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -103,11 +113,13 @@ fun FlashcardSprintView(
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
+                    @OptIn(ExperimentalLayoutApi::class)
+                    FlowRow(
+                        modifier = Modifier.weight(1f),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         KovaPillBadge(
                             text = "${sprint.secondsRemaining}s",
@@ -115,12 +127,16 @@ fun FlashcardSprintView(
                             containerColor = if (sprint.secondsRemaining <= 15) tactile.coralSoft else tactile.cobaltSoft,
                             contentColor = if (sprint.secondsRemaining <= 15) tactile.onCoralSoft else tactile.onCobaltSoft,
                             borderColor = Color.Transparent,
-                            modifier = Modifier.testTag("flashcard_timer_badge"),
+                            modifier = Modifier
+                                .align(Alignment.CenterVertically)
+                                .testTag("flashcard_timer_badge"),
                         )
                         Text(
                             text = "Got It: ${sprint.gotItCount} · Again: ${sprint.reviewAgainCount}",
                             style = KovaCodeTextStyle,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            modifier = Modifier.align(Alignment.CenterVertically),
                         )
                     }
 
@@ -263,12 +279,16 @@ fun FlashcardSprintView(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             KovaTactileButton(
-                onClick = onRateReviewAgain,
+                onClick = {
+                    feedback.softThud(view)
+                    onRateReviewAgain()
+                },
                 faceColor = tactile.amberFace,
                 lipColor = tactile.amberLip,
                 contentColor = tactile.onAmberFace,
                 minHeight = 52.dp,
                 lipHeight = 5.dp,
+                playTapSound = false,
                 modifier = Modifier
                     .weight(1f)
                     .testTag("flashcard_review_again_button"),
@@ -506,8 +526,11 @@ private fun SprintSummaryCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
             )
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            @OptIn(ExperimentalLayoutApi::class)
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 KovaPillBadge(
                     text = "${sprint.gotItCount} GOT IT",

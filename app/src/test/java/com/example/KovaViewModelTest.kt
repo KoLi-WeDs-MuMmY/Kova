@@ -1,5 +1,6 @@
 package com.example
 
+import com.example.data.local.FileKovaAppStateStore
 import com.example.model.HighlightCategory
 import com.example.model.KovaTab
 import com.example.model.LessonSplitRatio
@@ -8,6 +9,7 @@ import com.example.model.NoteSource
 import com.example.model.RevisionBinderTab
 import com.example.ui.theme.ThemeMode
 import com.example.viewmodel.KovaViewModel
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -125,7 +127,13 @@ class KovaViewModelTest {
         assertEquals("", state.chatComposerText)
         assertEquals(initialPool - 1, state.quota.activeAiPoolRemaining)
         assertEquals(beforeCount + 2, state.activeThreadMessages.size)
-        assertFalse(state.activeThreadMessages.last().isFromUser)
+        val userBubble = state.activeThreadMessages[state.activeThreadMessages.lastIndex - 1]
+        val statusNote = state.activeThreadMessages.last()
+        assertTrue(userBubble.isFromUser)
+        assertTrue(userBubble.content.contains("Explain like I'm 10"))
+        assertFalse(statusNote.isFromUser)
+        assertTrue(statusNote.isPhase3StatusNote)
+        assertTrue(statusNote.displayContent.contains("Phase 3"))
     }
 
     @Test
@@ -219,5 +227,116 @@ class KovaViewModelTest {
         assertEquals("l_1_1", secondReturn!!.lessonId)
         assertTrue(secondReturn.wasNewlyCompleted)
         assertTrue(secondReturn.nonce > firstReturn.nonce)
+    }
+
+    @Test
+    fun fileStateStorePersistsProgressSettingsDraftAndSprintAcrossRestart() {
+        val tempFile = File.createTempFile("kova_state_test_", ".json")
+        try {
+            val fixedDate = "2026-11-21"
+            val store1 = FileKovaAppStateStore(tempFile)
+            val vm1 = KovaViewModel(appStateStore = store1, dateProvider = { fixedDate })
+
+            vm1.setThemeMode(ThemeMode.AMOLED_BLACK)
+            vm1.setSoundAndHapticsEnabled(false)
+            vm1.setExpressiveMotionEnabled(false)
+            vm1.cycleLessonSplitRatio() // 50:50
+            vm1.passLessonMockTest("l_1_1", scorePercent = 92)
+            vm1.updateChatComposerText("Explain var vs val with a quick example")
+            vm1.flipFlashcard()
+            vm1.rateFlashcardGotIt()
+            vm1.flipFlashcard()
+            vm1.rateFlashcardReviewAgain()
+            vm1.togglePauseFlashcardSprint()
+
+            // Simulate full app kill & cold restart reading from the same file on disk
+            val store2 = FileKovaAppStateStore(tempFile)
+            val vm2 = KovaViewModel(appStateStore = store2, dateProvider = { fixedDate })
+            val restored = vm2.uiState.value
+
+            assertEquals(ThemeMode.AMOLED_BLACK, restored.themeMode)
+            assertFalse(restored.soundAndHapticsEnabled)
+            assertFalse(restored.expressiveMotionEnabled)
+            assertEquals(LessonSplitRatio.RATIO_50_50, restored.lessonSplitRatio)
+            assertEquals(LessonStatus.COMPLETED, restored.findLesson("l_1_1")?.status)
+            assertEquals(92, restored.findLesson("l_1_1")?.passScorePercent)
+            assertEquals(LessonStatus.UNLOCKED, restored.findLesson("l_1_2")?.status)
+            assertEquals(2, restored.quota.dailyLessonsRemaining)
+            assertEquals("Explain var vs val with a quick example", restored.chatComposerText)
+            assertEquals(1, restored.flashcardSprint.gotItCount)
+            assertEquals(1, restored.flashcardSprint.reviewAgainCount)
+        } finally {
+            tempFile.delete()
+        }
+    }
+
+    @Test
+    fun dailyQuotaRollsOverOnNewCalendarDateWhileKeepingMastery() {
+        val tempFile = File.createTempFile("kova_rollover_test_", ".json")
+        try {
+            val vmDay1 = KovaViewModel(
+                appStateStore = FileKovaAppStateStore(tempFile),
+                dateProvider = { "2026-11-21" },
+            )
+            vmDay1.passLessonMockTest("l_1_1", scorePercent = 88)
+            vmDay1.passLessonMockTest("l_1_2", scorePercent = 91)
+            assertEquals(1, vmDay1.uiState.value.quota.dailyLessonsRemaining)
+
+            // Cold start on the next calendar day
+            val vmDay2 = KovaViewModel(
+                appStateStore = FileKovaAppStateStore(tempFile),
+                dateProvider = { "2026-11-22" },
+            )
+            val stateDay2 = vmDay2.uiState.value
+
+            assertEquals(3, stateDay2.quota.dailyLessonsRemaining)
+            assertEquals("2026-11-22", stateDay2.quota.lastQuotaDateIso)
+            assertEquals(LessonStatus.COMPLETED, stateDay2.findLesson("l_1_1")?.status)
+            assertEquals(LessonStatus.COMPLETED, stateDay2.findLesson("l_1_2")?.status)
+            assertEquals(LessonStatus.UNLOCKED, stateDay2.findLesson("l_1_3")?.status)
+        } finally {
+            tempFile.delete()
+        }
+    }
+
+    @Test
+    fun resetStudyDataClearsProgressButPreservesThemeAndSoundSettings() {
+        val tempFile = File.createTempFile("kova_reset_test_", ".json")
+        try {
+            val vm = KovaViewModel(
+                appStateStore = FileKovaAppStateStore(tempFile),
+                dateProvider = { "2026-11-21" },
+            )
+            vm.setThemeMode(ThemeMode.AMOLED_BLACK)
+            vm.setSoundAndHapticsEnabled(false)
+            vm.setDynamicColorEnabled(true)
+            vm.passLessonMockTest("l_1_1", scorePercent = 95)
+            vm.updateChatComposerText("Unsent draft")
+
+            vm.resetDemoProgress()
+
+            val afterReset = vm.uiState.value
+            // Study data reset
+            assertEquals(LessonStatus.UNLOCKED, afterReset.findLesson("l_1_1")?.status)
+            assertEquals(LessonStatus.LOCKED, afterReset.findLesson("l_1_2")?.status)
+            assertEquals(3, afterReset.quota.dailyLessonsRemaining)
+            assertEquals("", afterReset.chatComposerText)
+            assertEquals(0, afterReset.flashcardSprint.gotItCount)
+
+            // Preferences preserved in memory AND on disk
+            assertEquals(ThemeMode.AMOLED_BLACK, afterReset.themeMode)
+            assertFalse(afterReset.soundAndHapticsEnabled)
+            assertTrue(afterReset.dynamicColorEnabled)
+
+            val reloaded = KovaViewModel(
+                appStateStore = FileKovaAppStateStore(tempFile),
+                dateProvider = { "2026-11-21" },
+            ).uiState.value
+            assertEquals(ThemeMode.AMOLED_BLACK, reloaded.themeMode)
+            assertFalse(reloaded.soundAndHapticsEnabled)
+            assertEquals(LessonStatus.UNLOCKED, reloaded.findLesson("l_1_1")?.status)
+        } finally {
+            tempFile.delete()
+        }
     }
 }

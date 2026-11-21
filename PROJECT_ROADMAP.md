@@ -81,6 +81,19 @@ This document preserves the North Star vision, Phase 1 deliverable contract, and
 - **Synthesized Duolingo-Style Sounds & Native Haptics**:
   - Added `KovaFeedbackEngine` (zero-asset PCM `AudioTrack` micro-sounds + `HapticFeedbackConstants`) wired to 3D presses, flips, saves, passes, and lock shakes, controlled by a **Sound & Haptics** toggle in Settings (ON by default).
 
+## Part B.4: Phase 1.4 On-Device Persistence, Audible Audio/Haptics, True AMOLED & Layout Polish (Implemented)
+
+- **Crash-Safe App-Private Disk Persistence (Survives App Kill & Restart)**:
+  - Added atomic `FileKovaAppStateStore` (`filesDir/kova_app_state_v1.json`) alongside Room SQLite (`KovaDatabase`), hydrating synchronously on startup so Theme Mode, Dynamic Color, Motion, Sound & Haptics, Dev Override, split ratio, expanded chapters, completed lessons, test scores, chapter assignments, daily lesson quota (with automatic calendar-day rollover), active chat thread, composer drafts, and flashcard sprint counts survive cold restarts with zero external storage permissions.
+  - **Reset Study Data** clears lessons, quota, chats, notes, and SR/sprint progress while preserving Theme, Dynamic Color, Motion, and Sound & Haptics preferences.
+- **Immediate AI Send Bubble & Phase 3 Local Status Note**:
+  - Tapping Send immediately appends the user's message bubble (stamped with `HH:mm` time and active lesson badge), clears the composer, plays feedback, persists to Room + disk, and appends a subtle `"SAVED LOCALLY · PHASE 3 READY"` status note below the user bubble.
+- **Audible Media-Channel Synthesized Sounds & Real Haptics**:
+  - Upgraded `KovaFeedbackEngine` to 44.1 kHz `USAGE_MEDIA` `AudioTrack` with raised-cosine envelopes so soft pops/ticks, rising 3-note success chimes (`C5 -> E5 -> G5`), and gentle low two-note thuds (`G3 -> D3` on locked nodes and `"Review Again"`) are reliably audible even on vibrate, paired with `performHapticFeedback(..., FLAG_IGNORE_VIEW_SETTING)`.
+- **True AMOLED (`#000000`) & Zero-Overlap Layout Polish**:
+  - Disabled Material 3 tonal elevation wash (`surfaceTint = Color.Transparent`, `LocalTonalElevationEnabled = false`, `tonalElevation = 0.dp` on Settings sheet) and painted the Android window background `#000000` so AMOLED cards (`#111111`/`#181818` with `#282828` outlines and grounded 3D lips) float over pure black.
+  - Hardened compact & landscape layouts with `FlowRow` headers/pills, `maxLines = 1` + `TextOverflow.Ellipsis`, and compact-height adaptation inside the `25%` IDE pane so badges, buttons, and split-ratio pills never crowd or overlap.
+
 ---
 
 ## Part C: Upcoming Phase 2/3 (Live Gemini AI, Interactive Lessons & Lab Prompt Builder)
