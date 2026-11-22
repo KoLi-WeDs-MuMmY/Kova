@@ -429,4 +429,96 @@ class KovaViewModelTest {
         assertFalse(vm.uiState.value.isGlobalChromeHidden)
         assertFalse(vm.uiState.value.flashcardSprint.isRunning)
     }
+
+    @Test
+    fun allFourChapter1LessonsContainFullPhase2InteractiveCurriculum() {
+        val vm = KovaViewModel()
+        val ch1 = vm.uiState.value.findChapter("ch_1")!!
+        assertEquals(4, ch1.lessons.size)
+
+        ch1.lessons.forEach { lesson ->
+            val content = lesson.interactiveContent
+            assertNotNull("Missing Phase 2 content for ${lesson.code}", content)
+            assertTrue("${lesson.code} needs word breakdowns", content!!.wordBreakdowns.size >= 3)
+            assertTrue("${lesson.code} needs concept rules", content.conceptRules.size >= 3)
+            assertTrue("${lesson.code} needs desired output", content.practiceTask.desiredOutput.isNotBlank())
+            assertTrue("${lesson.code} needs solution notes", content.practiceTask.lineNotes.isNotEmpty())
+            assertTrue("${lesson.code} needs multi-step debugger", content.debugger.steps.size >= 5)
+            assertTrue(
+                "${lesson.code} debugger final step should emit console output",
+                content.debugger.steps.last().consoleOutput.isNotEmpty(),
+            )
+            assertEquals("${lesson.code} needs 5 integrated test questions", 5, content.testQuestions.size)
+        }
+    }
+
+    @Test
+    fun savingLessonHighlightSyncsToRevisionAndGotchaSendsDraftToAi() {
+        val vm = KovaViewModel()
+        val initialCount = vm.uiState.value.highlights.size
+
+        vm.saveLessonHighlight(
+            lessonId = "l_1_1",
+            blockId = "wb_immutable",
+            snippet = "'val' creates an immutable read-only label.",
+            category = HighlightCategory.KEY_IDEA,
+            learnerNote = "Remember sealed glass jar analogy.",
+        )
+
+        val afterSave = vm.uiState.value
+        assertEquals(initialCount + 1, afterSave.highlights.size)
+        val saved = afterSave.highlights.first()
+        assertEquals("1.1", saved.lessonCode)
+        assertEquals(HighlightCategory.KEY_IDEA, saved.category)
+        assertEquals(NoteSource.LESSON_HIGHLIGHT, saved.source)
+        assertEquals("Remember sealed glass jar analogy.", saved.learnerNote)
+
+        // Send Gotcha to AI saves note, routes to AI tab, and loads composer draft
+        vm.openLesson("l_1_1")
+        vm.askAiAboutLessonHighlight(
+            lessonId = "l_1_1",
+            blockId = "rule_val_first",
+            snippet = "Val cannot be reassigned.",
+            learnerNote = "When should I pick var?",
+        )
+
+        val afterAi = vm.uiState.value
+        assertEquals(KovaTab.AI, afterAi.selectedTab)
+        assertEquals(null, afterAi.activeDetail)
+        assertTrue(afterAi.chatComposerText.contains("Lesson 1.1"))
+        assertTrue(afterAi.chatComposerText.contains("Val cannot be reassigned."))
+        assertEquals(HighlightCategory.GOTCHA, afterAi.highlights.first().category)
+    }
+
+    @Test
+    fun integratedLessonTestEnforces80PercentGateAndUpdatesMasteryRadar() {
+        val vm = KovaViewModel()
+        val initialQuota = vm.uiState.value.quota.dailyLessonsRemaining
+
+        // Below 80% must NOT unlock next lesson or spend quota
+        vm.submitLessonTestPass("l_1_1", scorePercent = 60)
+        assertEquals(LessonStatus.UNLOCKED, vm.uiState.value.findLesson("l_1_1")?.status)
+        assertEquals(LessonStatus.LOCKED, vm.uiState.value.findLesson("l_1_2")?.status)
+        assertEquals(initialQuota, vm.uiState.value.quota.dailyLessonsRemaining)
+
+        // Passing >= 80% unlocks next lesson, saves score, decrements quota, updates SR retention
+        vm.submitLessonTestPass("l_1_3", scorePercent = 100)
+        assertEquals(LessonStatus.COMPLETED, vm.uiState.value.findLesson("l_1_3")?.status)
+        assertEquals(100, vm.uiState.value.findLesson("l_1_3")?.passScorePercent)
+        assertEquals(initialQuota - 1, vm.uiState.value.quota.dailyLessonsRemaining)
+
+        val sr13 = vm.uiState.value.spacedRepetitionItems.first { it.lessonCode == "1.3" }
+        assertFalse(sr13.isDueNow)
+        assertEquals(99, sr13.retentionPercent)
+        assertTrue(vm.uiState.value.masteryRadar.strongest.any { it.lessonCode == "1.3" })
+    }
+
+    @Test
+    fun setLessonSplitRatioAutoExpandsFrom75_25To50_50() {
+        val vm = KovaViewModel()
+        assertEquals(LessonSplitRatio.RATIO_75_25, vm.uiState.value.lessonSplitRatio)
+
+        vm.setLessonSplitRatio(LessonSplitRatio.RATIO_50_50)
+        assertEquals(LessonSplitRatio.RATIO_50_50, vm.uiState.value.lessonSplitRatio)
+    }
 }

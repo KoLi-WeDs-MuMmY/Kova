@@ -57,6 +57,106 @@ data class LessonReturnEvent(
 )
 
 @Immutable
+data class WordBreakdown(
+    val id: String,
+    val term: String,
+    val literalMeaning: String,
+    val tenYearOldAnalogy: String,
+    val highlightSnippet: String,
+)
+
+@Immutable
+data class ConceptRule(
+    val id: String,
+    val title: String,
+    val explanation: String,
+    val codeSnippet: String,
+    val whyItMatters: String,
+)
+
+@Immutable
+data class PracticeSolutionNote(
+    val lineNumber: Int,
+    val note: String,
+)
+
+@Immutable
+data class PracticeTaskSpec(
+    val title: String,
+    val prompt: String,
+    val desiredOutput: String,
+    val solutionCode: String,
+    val lineNotes: List<PracticeSolutionNote>,
+)
+
+enum class CodeLineRole(val badgeLabel: String) {
+    DECLARATION("DECL"),
+    EXECUTION("EXEC"),
+    DECISION("BRANCH"),
+    OUTPUT("OUTPUT"),
+}
+
+@Immutable
+data class DebuggerCodeLine(
+    val lineNumber: Int,
+    val code: String,
+    val role: CodeLineRole,
+)
+
+@Immutable
+data class VariableWatchEntry(
+    val name: String,
+    val typeName: String,
+    val value: String,
+    val previousValue: String? = null,
+    val isChanged: Boolean = false,
+)
+
+@Immutable
+data class DebuggerStep(
+    val stepIndex: Int,
+    val activeLineNumber: Int,
+    val headline: String,
+    val explanation: String,
+    val variables: List<VariableWatchEntry>,
+    val consoleOutput: List<String>,
+)
+
+@Immutable
+data class DebuggerWalkthrough(
+    val title: String,
+    val subtitle: String,
+    val lines: List<DebuggerCodeLine>,
+    val steps: List<DebuggerStep>,
+)
+
+enum class LessonQuestionKind(val label: String) {
+    PREDICT_OUTPUT("Predict the Output"),
+    SPOT_BUG("Spot the Bug"),
+    FILL_KEYWORD("Fill the Keyword"),
+}
+
+@Immutable
+data class LessonTestQuestion(
+    val id: String,
+    val kind: LessonQuestionKind,
+    val prompt: String,
+    val codeSnippet: String? = null,
+    val options: List<String>,
+    val correctIndex: Int,
+    val plainEnglishExplanation: String,
+)
+
+@Immutable
+data class LessonInteractiveContent(
+    val wordBreakdowns: List<WordBreakdown>,
+    val conceptRules: List<ConceptRule>,
+    val practiceTask: PracticeTaskSpec,
+    val debugger: DebuggerWalkthrough,
+    val testQuestions: List<LessonTestQuestion>,
+)
+
+@Immutable
 data class Lesson(
     val id: String,
     val chapterId: String,
@@ -68,6 +168,7 @@ data class Lesson(
     val estimatedMinutes: Int,
     val status: LessonStatus,
     val passScorePercent: Int? = null,
+    val interactiveContent: LessonInteractiveContent? = null,
 )
 
 @Immutable

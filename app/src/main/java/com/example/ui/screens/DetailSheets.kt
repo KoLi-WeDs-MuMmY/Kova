@@ -47,8 +47,10 @@ import com.example.R
 import com.example.model.Chapter
 import com.example.model.ChapterAssignment
 import com.example.model.DetailDestination
+import com.example.model.HighlightCategory
 import com.example.model.HighlightNote
 import com.example.model.KovaUiState
+import com.example.model.LessonSplitRatio
 import com.example.model.NoteSource
 import com.example.ui.components.KovaPillBadge
 import com.example.ui.components.KovaScallopedSealBadge
@@ -69,7 +71,10 @@ fun DetailSheetHost(
     animatedVisibilityScope: AnimatedVisibilityScope,
     onClose: () -> Unit,
     onCycleSplitRatio: () -> Unit,
-    onPassLessonMockTest: (String) -> Unit,
+    onSetSplitRatio: (LessonSplitRatio) -> Unit,
+    onSaveLessonHighlight: (lessonId: String, blockId: String, snippet: String, category: HighlightCategory, learnerNote: String) -> Unit,
+    onAskAiLessonHighlight: (lessonId: String, blockId: String, snippet: String, learnerNote: String) -> Unit,
+    onSubmitLessonTestPass: (lessonId: String, scorePercent: Int) -> Unit,
     onCompleteAssignment: (String) -> Unit,
 ) {
     BackHandler(onBack = onClose)
@@ -96,12 +101,22 @@ fun DetailSheetHost(
                         val chapterProgress = uiState.findChapter(lesson.chapterId)?.progressFraction ?: 0f
                         LessonFocusWorkspace(
                             lesson = lesson,
+                            savedHighlights = uiState.highlights,
                             chapterProgress = chapterProgress,
                             dailyRemaining = uiState.quota.dailyLessonsRemaining,
                             splitRatio = uiState.lessonSplitRatio,
                             onCycleSplitRatio = onCycleSplitRatio,
+                            onSetSplitRatio = onSetSplitRatio,
+                            onSaveHighlight = { blockId, snippet, category, note ->
+                                onSaveLessonHighlight(lesson.id, blockId, snippet, category, note)
+                            },
+                            onAskAiHighlight = { blockId, snippet, note ->
+                                onAskAiLessonHighlight(lesson.id, blockId, snippet, note)
+                            },
+                            onSubmitLessonTestPass = { scorePercent ->
+                                onSubmitLessonTestPass(lesson.id, scorePercent)
+                            },
                             onClose = onClose,
-                            onPassMockTest = { onPassLessonMockTest(lesson.id) },
                         )
                     }
                 }

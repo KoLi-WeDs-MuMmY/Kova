@@ -46,6 +46,7 @@ class MockLearningRepository : LearningRepository {
                     codePreview = "val heroName = \"Kova\"\nvar dailyXp = 40\ndailyXp += 15",
                     estimatedMinutes = 8,
                     status = LessonStatus.UNLOCKED,
+                    interactiveContent = Chapter1CurriculumContent.lesson1_1WordsAndVariables(),
                 ),
                 Lesson(
                     id = "l_1_2",
@@ -57,6 +58,7 @@ class MockLearningRepository : LearningRepository {
                     codePreview = "val streak: Int = 5\nval badge = \"Streak: \${streak}d\"\nval tip: String? = null",
                     estimatedMinutes = 10,
                     status = LessonStatus.LOCKED,
+                    interactiveContent = Chapter1CurriculumContent.lesson1_2TypesAndStrings(),
                 ),
                 Lesson(
                     id = "l_1_3",
@@ -68,6 +70,7 @@ class MockLearningRepository : LearningRepository {
                     codePreview = "val score = 85\nval passed = score in 80..100\nval nextRank = score / 10",
                     estimatedMinutes = 9,
                     status = LessonStatus.LOCKED,
+                    interactiveContent = Chapter1CurriculumContent.lesson1_3OperatorsAndRanges(),
                 ),
                 Lesson(
                     id = "l_1_4",
@@ -79,6 +82,7 @@ class MockLearningRepository : LearningRepository {
                     codePreview = "val tier = when (score) {\n  in 90..100 -> \"Gold\"\n  in 80..89 -> \"Mint\"\n  else -> \"Retry\"\n}",
                     estimatedMinutes = 12,
                     status = LessonStatus.LOCKED,
+                    interactiveContent = Chapter1CurriculumContent.lesson1_4ControlDecisions(),
                 ),
             ),
             assignment = ChapterAssignment(

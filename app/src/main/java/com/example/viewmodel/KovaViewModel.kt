@@ -533,8 +533,25 @@ class KovaViewModel(
         persistSnapshot()
     }
 
+    fun setLessonSplitRatio(ratio: LessonSplitRatio) {
+        if (_uiState.value.lessonSplitRatio == ratio) return
+        _uiState.update { state ->
+            state.copy(lessonSplitRatio = ratio)
+        }
+        persistSnapshot()
+    }
+
     fun passLessonMockTest(lessonId: String, scorePercent: Int = 85) {
+        submitLessonTestPass(lessonId = lessonId, scorePercent = scorePercent)
+    }
+
+    fun submitLessonTestPass(lessonId: String, scorePercent: Int) {
         checkDailyRollover()
+        val clampedScore = scorePercent.coerceIn(0, 100)
+        if (clampedScore < 80) return
+
+        var updatedSrItemToPersist: com.example.model.SpacedRepetitionItem? = null
+
         _uiState.update { state ->
             val targetLesson = state.findLesson(lessonId) ?: return@update state
             val wasAlreadyCompleted = targetLesson.status == LessonStatus.COMPLETED
@@ -551,7 +568,7 @@ class KovaViewModel(
                         when {
                             idx == targetIndex -> lesson.copy(
                                 status = LessonStatus.COMPLETED,
-                                passScorePercent = scorePercent,
+                                passScorePercent = clampedScore,
                             )
                             idx == targetIndex + 1 && lesson.status == LessonStatus.LOCKED -> {
                                 nextLessonTitle = "${lesson.code} ${lesson.title}"
@@ -584,20 +601,136 @@ class KovaViewModel(
                 state.quota
             }
 
+            // Sync matching Spaced-Repetition item so Revision's Concept Mastery Radar updates immediately
+            val updatedSrItems = state.spacedRepetitionItems.map { item ->
+                if (item.lessonCode == targetLesson.code) {
+                    val boostedRetention = maxOf(item.retentionPercent, clampedScore).coerceIn(80, 99)
+                    val refreshed = item.copy(
+                        isDueNow = false,
+                        countdownLabel = "Mastered · Next in 3d",
+                        retentionPercent = boostedRetention,
+                        intervalTag = "Test $clampedScore%",
+                        reviewCount = item.reviewCount + 1,
+                    )
+                    updatedSrItemToPersist = refreshed
+                    refreshed
+                } else {
+                    item
+                }
+            }
+
             val feedback = when {
-                wasAlreadyCompleted -> "${targetLesson.code} reviewed ($scorePercent%)"
+                wasAlreadyCompleted -> "${targetLesson.code} test passed again ($clampedScore%)!"
                 unlockedAssignmentTitle != null ->
-                    "Passed ${targetLesson.code} ($scorePercent%)! Chapter Assignment trophy unlocked."
+                    "Passed ${targetLesson.code} ($clampedScore%)! Chapter Assignment trophy unlocked."
                 nextLessonTitle != null ->
-                    "Passed ${targetLesson.code} ($scorePercent%)! Unlocked $nextLessonTitle."
-                else -> "Passed ${targetLesson.code} ($scorePercent%)!"
+                    "Passed ${targetLesson.code} ($clampedScore%)! Unlocked $nextLessonTitle."
+                else -> "Passed ${targetLesson.code} ($clampedScore%)!"
             }
 
             state.copy(
                 chapters = updatedChapters,
+                spacedRepetitionItems = updatedSrItems,
                 quota = updatedQuota,
                 newlyCompletedLessonInSession = if (!wasAlreadyCompleted) lessonId else state.newlyCompletedLessonInSession,
                 snackbarMessage = feedback,
+            )
+        }
+        persistSnapshot()
+        updatedSrItemToPersist?.let { item ->
+            vmScope.launch {
+                persistence.upsertSpacedRepetitionItem(item)
+            }
+        }
+    }
+
+    fun saveLessonHighlight(
+        lessonId: String,
+        blockId: String,
+        snippet: String,
+        category: HighlightCategory,
+        learnerNote: String = "",
+    ) {
+        val state = _uiState.value
+        val lesson = state.findLesson(lessonId) ?: return
+        val cleanSnippet = snippet.trim()
+        if (cleanSnippet.isEmpty()) return
+
+        val now = System.currentTimeMillis()
+        val noteId = "hl_${lesson.id}_$blockId"
+        val cleanNote = learnerNote.trim().ifBlank {
+            when (category) {
+                HighlightCategory.KEY_IDEA -> "Key concept highlighted while studying Lesson ${lesson.code}."
+                HighlightCategory.CODE_RULE -> "Syntax rule saved from Lesson ${lesson.code} (${lesson.title})."
+                HighlightCategory.GOTCHA -> "Watch-out point flagged in Lesson ${lesson.code} — review or ask AI."
+            }
+        }
+
+        val note = HighlightNote(
+            id = noteId,
+            lessonCode = lesson.code,
+            lessonTitle = lesson.title,
+            category = category,
+            highlightedSnippet = cleanSnippet,
+            learnerNote = cleanNote,
+            source = NoteSource.LESSON_HIGHLIGHT,
+            savedAtLabel = "Today · ${formatClockTime(now)}",
+            createdAtMillis = now,
+        )
+
+        val categoryLabel = when (category) {
+            HighlightCategory.KEY_IDEA -> "Key Idea"
+            HighlightCategory.CODE_RULE -> "Code Rule"
+            HighlightCategory.GOTCHA -> "Gotcha / Ask AI"
+        }
+
+        _uiState.update { current ->
+            current.copy(
+                highlights = listOf(note) + current.highlights.filterNot { it.id == noteId },
+                snackbarMessage = "Highlighted as $categoryLabel · Synced to Revision (L${lesson.code}).",
+            )
+        }
+
+        vmScope.launch {
+            persistence.saveRevisionNote(note)
+        }
+    }
+
+    fun askAiAboutLessonHighlight(
+        lessonId: String,
+        blockId: String,
+        snippet: String,
+        learnerNote: String = "",
+    ) {
+        val lesson = _uiState.value.findLesson(lessonId) ?: return
+        saveLessonHighlight(
+            lessonId = lessonId,
+            blockId = blockId,
+            snippet = snippet,
+            category = HighlightCategory.GOTCHA,
+            learnerNote = learnerNote,
+        )
+
+        val trimmedNote = learnerNote.trim()
+        val prompt = buildString {
+            append("Lesson ${lesson.code} (${lesson.title}) Gotcha: \"${snippet.trim()}\"")
+            if (trimmedNote.isNotEmpty()) {
+                append(" — Note: $trimmedNote")
+            }
+            append(" Can you explain this like I'm 10 with a quick example?")
+        }
+
+        _uiState.update { current ->
+            val matchingThread = current.chatThreads.firstOrNull { it.lessonCode == lesson.code }
+                ?: current.activeThread
+            current.copy(
+                activeDetail = null,
+                focusedChapterId = null,
+                isChapterAiSheetOpen = false,
+                selectedTab = KovaTab.AI,
+                activeThreadId = matchingThread?.id ?: current.activeThreadId,
+                chatComposerText = prompt,
+                snackbarMessage = "Saved Gotcha to Revision & loaded into AI Tutor draft.",
             )
         }
         persistSnapshot()

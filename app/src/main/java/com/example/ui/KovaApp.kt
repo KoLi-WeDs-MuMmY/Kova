@@ -83,6 +83,7 @@ import com.example.R
 import com.example.model.HighlightCategory
 import com.example.model.KovaTab
 import com.example.model.KovaUiState
+import com.example.model.LessonSplitRatio
 import com.example.model.RevisionBinderTab
 import com.example.ui.components.AmbientMaterialCanvas
 import com.example.ui.components.DeveloperSettingsSheet
@@ -193,7 +194,10 @@ fun KovaApp(
                     onRevisionSheetClick = viewModel::openRevisionSheet,
                     onCloseDetail = viewModel::closeDetail,
                     onCycleSplitRatio = viewModel::cycleLessonSplitRatio,
-                    onPassLessonMockTest = viewModel::passLessonMockTest,
+                    onSetSplitRatio = viewModel::setLessonSplitRatio,
+                    onSaveLessonHighlight = viewModel::saveLessonHighlight,
+                    onAskAiLessonHighlight = viewModel::askAiAboutLessonHighlight,
+                    onSubmitLessonTestPass = viewModel::submitLessonTestPass,
                     onCompleteAssignment = viewModel::completeAssignment,
                     onToggleAiHistoryVisibility = viewModel::toggleAiHistoryVisibility,
                     onSetAiHistoryVisibility = viewModel::setAiHistoryVisibility,
@@ -257,7 +261,10 @@ private fun KovaShellContent(
     onRevisionSheetClick: (String) -> Unit,
     onCloseDetail: () -> Unit,
     onCycleSplitRatio: () -> Unit,
-    onPassLessonMockTest: (String) -> Unit,
+    onSetSplitRatio: (LessonSplitRatio) -> Unit,
+    onSaveLessonHighlight: (String, String, String, HighlightCategory, String) -> Unit,
+    onAskAiLessonHighlight: (String, String, String, String) -> Unit,
+    onSubmitLessonTestPass: (String, Int) -> Unit,
     onCompleteAssignment: (String) -> Unit,
     onToggleAiHistoryVisibility: (Boolean) -> Unit,
     onSetAiHistoryVisibility: (Boolean) -> Unit,
@@ -353,7 +360,10 @@ private fun KovaShellContent(
                             animatedVisibilityScope = this@AnimatedContent,
                             onClose = onCloseDetail,
                             onCycleSplitRatio = onCycleSplitRatio,
-                            onPassLessonMockTest = onPassLessonMockTest,
+                            onSetSplitRatio = onSetSplitRatio,
+                            onSaveLessonHighlight = onSaveLessonHighlight,
+                            onAskAiLessonHighlight = onAskAiLessonHighlight,
+                            onSubmitLessonTestPass = onSubmitLessonTestPass,
                             onCompleteAssignment = onCompleteAssignment,
                         )
                     }
