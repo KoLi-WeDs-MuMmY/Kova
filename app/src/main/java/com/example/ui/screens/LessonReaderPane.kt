@@ -1,12 +1,17 @@
 package com.example.ui.screens
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,6 +22,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -27,6 +33,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.AutoAwesome
@@ -47,11 +55,16 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -70,6 +83,7 @@ import com.example.model.Lesson
 import com.example.model.LessonInteractiveContent
 import com.example.model.LessonStatus
 import com.example.model.PracticeTaskSpec
+import com.example.model.PreHighlightedTakeaway
 import com.example.model.WordBreakdown
 import com.example.ui.components.KovaPillBadge
 import com.example.ui.components.KovaScallopedSealBadge
@@ -78,9 +92,19 @@ import com.example.ui.components.KovaTactileCard
 import com.example.ui.feedback.LocalKovaFeedback
 import com.example.ui.theme.KovaCodeTextStyle
 import com.example.ui.theme.KovaExpressiveShapes
+import com.example.ui.theme.KovaMonoBadgeTextStyle
 import com.example.ui.theme.LocalKovaMotion
 import com.example.ui.theme.LocalKovaTactileColors
 
+/**
+ * Phase 2.1 Lesson Reader Pane:
+ * - Clean, airy visual pacing with generous breathing room between sections
+ * - Pre-Highlighted Key Takeaways rendered automatically alongside interactive tap-to-highlight
+ * - Crisp 10-year-old concept summaries + tactile "Explain ->" button that hides the rest of the
+ *   lesson cards and enters distraction-free Conversational Deep-Dive Focus Mode ("<- Back to Lesson")
+ * - Practice Goal & Desired Output card with collapsed-by-default "Show Solution & Line Notes"
+ * - 5-Question Closed-Book Integrated Lesson Test launcher
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun LessonReaderPane(
@@ -88,12 +112,17 @@ fun LessonReaderPane(
     content: LessonInteractiveContent,
     savedHighlights: List<HighlightNote>,
     dailyRemaining: Int,
+    savedScrollPosition: Int = 0,
+    activeExplainRuleId: String? = null,
+    onScrollPositionChanged: (Int) -> Unit = {},
+    onActiveExplainRuleChanged: (String?) -> Unit = {},
     onSaveHighlight: (blockId: String, snippet: String, category: HighlightCategory, learnerNote: String) -> Unit,
     onAskAiHighlight: (blockId: String, snippet: String, learnerNote: String) -> Unit,
     onStartIntegratedTest: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val tactile = LocalKovaTactileColors.current
+    val motion = LocalKovaMotion.current
     val feedback = LocalKovaFeedback.current
     val view = LocalView.current
     val isCompleted = lesson.status == LessonStatus.COMPLETED
@@ -103,8 +132,34 @@ fun LessonReaderPane(
     var noteDraft by rememberSaveable(lesson.id) { mutableStateOf("") }
     var isSolutionVisible by rememberSaveable(lesson.id) { mutableStateOf(false) }
 
+    val readerScrollState = rememberScrollState(initial = savedScrollPosition)
+
+    LaunchedEffect(lesson.id) {
+        if (savedScrollPosition > 0 && readerScrollState.value != savedScrollPosition) {
+            readerScrollState.scrollTo(savedScrollPosition)
+        }
+    }
+
+    LaunchedEffect(lesson.id, readerScrollState) {
+        snapshotFlow { readerScrollState.isScrollInProgress }
+            .distinctUntilChanged()
+            .filter { !it }
+            .collect {
+                onScrollPositionChanged(readerScrollState.value)
+            }
+    }
+
+    DisposableEffect(lesson.id) {
+        onDispose {
+            onScrollPositionChanged(readerScrollState.value)
+        }
+    }
+
     val savedById = remember(savedHighlights) {
         savedHighlights.associateBy { it.id }
+    }
+    val activeExplainRule = remember(activeExplainRuleId, content.conceptRules) {
+        activeExplainRuleId?.let { id -> content.conceptRules.firstOrNull { it.id == id } }
     }
 
     fun toggleBlockSelection(blockId: String) {
@@ -119,156 +174,556 @@ fun LessonReaderPane(
         }
     }
 
-    Column(
-        modifier = modifier
-            .verticalScroll(rememberScrollState())
-            .padding(bottom = 14.dp)
-            .testTag("lesson_reader_pane"),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        // 1. Focused Lesson Header
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+    // Intercept system Back while inside Conversational Explain Focus Mode
+    BackHandler(enabled = activeExplainRule != null) {
+        feedback.tap(view)
+        onActiveExplainRuleChanged(null)
+    }
+
+    AnimatedContent(
+        targetState = activeExplainRule,
+        transitionSpec = {
+            if (motion.enabled) {
+                (fadeIn(tween(220)) + scaleIn(
+                    initialScale = 0.97f,
+                    animationSpec = spring(dampingRatio = 0.78f, stiffness = 340f),
+                )).togetherWith(fadeOut(tween(160)))
+            } else {
+                fadeIn(snap()) togetherWith fadeOut(snap())
+            }
+        },
+        modifier = modifier.testTag("lesson_reader_pane"),
+        label = "lesson_reader_explain_focus_transition",
+    ) { explainRule ->
+        if (explainRule != null) {
+            ConversationalExplainFocusView(
+                lessonCode = lesson.code,
+                rule = explainRule,
+                onBackToLesson = {
+                    feedback.tap(view)
+                    onActiveExplainRuleChanged(null)
+                },
+            )
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(readerScrollState)
+                    .padding(bottom = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
-                KovaPillBadge(
-                    text = "LESSON ${lesson.code} · ${lesson.estimatedMinutes}M",
-                    containerColor = tactile.cobaltSoft,
-                    contentColor = tactile.onCobaltSoft,
-                    borderColor = Color.Transparent,
+                // 1. Airy Lesson Title Header
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        KovaPillBadge(
+                            text = "LESSON ${lesson.code} · ${lesson.estimatedMinutes}M",
+                            containerColor = tactile.cobaltSoft,
+                            contentColor = tactile.onCobaltSoft,
+                            borderColor = Color.Transparent,
+                        )
+                        KovaPillBadge(
+                            text = "$dailyRemaining/3 DAILY LEFT",
+                            containerColor = tactile.cardFace,
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            borderColor = tactile.cardOutline,
+                        )
+                        if (isCompleted && lesson.passScorePercent != null) {
+                            KovaPillBadge(
+                                text = "${lesson.passScorePercent}% PASSED",
+                                containerColor = tactile.emeraldSoft,
+                                contentColor = tactile.onEmeraldSoft,
+                                borderColor = Color.Transparent,
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = lesson.title,
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+
+                    Text(
+                        text = lesson.subtitle,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.BookmarkAdd,
+                            contentDescription = null,
+                            tint = tactile.amberFace,
+                            modifier = Modifier.size(15.dp),
+                        )
+                        Text(
+                            text = stringResource(R.string.lesson_highlight_tap_hint),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+
+                // 2. Built-In Pre-Highlighted Key Takeaways
+                if (content.preHighlightedTakeaways.isNotEmpty()) {
+                    PreHighlightedTakeawaysSection(
+                        takeaways = content.preHighlightedTakeaways,
+                    )
+                }
+
+                // 3. Plain-English Word Breakdown Cards
+                WordBreakdownSectionCard(
+                    lessonId = lesson.id,
+                    breakdowns = content.wordBreakdowns,
+                    savedById = savedById,
+                    activeBlockId = activeHighlightBlockId,
+                    selectedTag = selectedTag,
+                    noteDraft = noteDraft,
+                    onToggleBlock = ::toggleBlockSelection,
+                    onSelectTag = { tag ->
+                        feedback.tap(view)
+                        selectedTag = tag
+                    },
+                    onNoteDraftChange = { noteDraft = it },
+                    onSave = { blockId, snippet ->
+                        feedback.gotItChime(view)
+                        onSaveHighlight(blockId, snippet, selectedTag, noteDraft)
+                        activeHighlightBlockId = null
+                        noteDraft = ""
+                    },
+                    onSendGotchaToAi = { blockId, snippet ->
+                        feedback.gotItChime(view)
+                        onAskAiHighlight(blockId, snippet, noteDraft)
+                        activeHighlightBlockId = null
+                        noteDraft = ""
+                    },
                 )
-                KovaPillBadge(
-                    text = "$dailyRemaining/3 DAILY LEFT",
-                    containerColor = tactile.cardFace,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    borderColor = tactile.cardOutline,
+
+                // 4. Core Concepts (10-Year-Old Summary + "Explain ->" Deep-Dive Focus Mode)
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    SectionHeadingRow(
+                        icon = Icons.Outlined.Code,
+                        iconTint = tactile.emeraldFace,
+                        title = stringResource(R.string.lesson_section_concept_rules),
+                        badgeText = "${content.conceptRules.size} CONCEPTS",
+                    )
+
+                    content.conceptRules.forEach { rule ->
+                        val existingNote = savedById["hl_${lesson.id}_${rule.id}"]
+                        ConceptRuleCard(
+                            rule = rule,
+                            existingHighlight = existingNote,
+                            isTagBarExpanded = activeHighlightBlockId == rule.id,
+                            selectedTag = selectedTag,
+                            noteDraft = noteDraft,
+                            onTapBlock = { toggleBlockSelection(rule.id) },
+                            onOpenExplainFocus = {
+                                feedback.chapterSwoosh(view)
+                                onScrollPositionChanged(readerScrollState.value)
+                                activeHighlightBlockId = null
+                                onActiveExplainRuleChanged(rule.id)
+                            },
+                            onSelectTag = { tag ->
+                                feedback.tap(view)
+                                selectedTag = tag
+                            },
+                            onNoteDraftChange = { noteDraft = it },
+                            onSave = {
+                                feedback.gotItChime(view)
+                                onSaveHighlight(
+                                    rule.id,
+                                    "${rule.title}: ${rule.explanation}",
+                                    selectedTag,
+                                    noteDraft,
+                                )
+                                activeHighlightBlockId = null
+                                noteDraft = ""
+                            },
+                            onSendGotchaToAi = {
+                                feedback.gotItChime(view)
+                                onAskAiHighlight(
+                                    rule.id,
+                                    "${rule.title}: ${rule.explanation}",
+                                    noteDraft,
+                                )
+                                activeHighlightBlockId = null
+                                noteDraft = ""
+                            },
+                        )
+                    }
+                }
+
+                // 5. Practice Goal, Desired Output & Collapsible "Show Solution"
+                PracticeDesiredOutputCard(
+                    practiceTask = content.practiceTask,
+                    isSolutionVisible = isSolutionVisible,
+                    onToggleSolution = {
+                        feedback.tap(view)
+                        isSolutionVisible = !isSolutionVisible
+                    },
                 )
-                if (isCompleted && lesson.passScorePercent != null) {
-                    KovaPillBadge(
-                        text = "${lesson.passScorePercent}% PASSED",
-                        containerColor = tactile.emeraldSoft,
-                        contentColor = tactile.onEmeraldSoft,
-                        borderColor = Color.Transparent,
+
+                // 6. Integrated 5-Question Closed-Book Lesson Test Card
+                IntegratedLessonTestCard(
+                    lesson = lesson,
+                    questionCount = content.testQuestions.size,
+                    onStartTest = {
+                        feedback.pedestalPress(view)
+                        onStartIntegratedTest()
+                    },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Distraction-free 1-on-1 Conversational Deep-Dive View launched via "Explain ->".
+ * Hides all other lesson cards and walks through:
+ * 1) Real-life everyday opening
+ * 2) How Kotlin & devices connect to it
+ * 3) Exact syntax snippet
+ * 4) Every symbol/keyword in plain words
+ * 5) Clear "<- Back to Lesson" return control
+ */
+@Composable
+private fun ConversationalExplainFocusView(
+    lessonCode: String,
+    rule: ConceptRule,
+    onBackToLesson: () -> Unit,
+) {
+    val tactile = LocalKovaTactileColors.current
+    val deepDive = rule.explainDeepDive
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(bottom = 20.dp)
+            .testTag("lesson_explain_focus_view"),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        // Top Back-to-Lesson bar
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Surface(
+                onClick = onBackToLesson,
+                shape = KovaExpressiveShapes.Pill,
+                color = tactile.cardFace,
+                border = BorderStroke(1.25.dp, tactile.cobaltFace.copy(alpha = 0.6f)),
+                modifier = Modifier
+                    .height(42.dp)
+                    .testTag("explain_back_to_lesson_button"),
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 13.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = stringResource(R.string.cd_back),
+                        tint = tactile.cobaltFace,
+                        modifier = Modifier.size(17.dp),
+                    )
+                    Text(
+                        text = "Back to Lesson",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        softWrap = false,
                     )
                 }
             }
+
+            KovaPillBadge(
+                text = "L$lessonCode · EXPLAIN",
+                containerColor = tactile.cobaltSoft,
+                contentColor = tactile.onCobaltSoft,
+                borderColor = Color.Transparent,
+            )
+        }
+
+        // Concept Headline (Space Grotesk)
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
-                text = lesson.title,
-                style = MaterialTheme.typography.headlineSmall,
+                text = stringResource(R.string.lesson_explain_badge),
+                style = KovaMonoBadgeTextStyle,
+                color = tactile.cobaltFace,
+            )
+            Text(
+                text = deepDive.headline,
+                style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.onBackground,
             )
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+        }
+
+        // Step 1: Real-life Everyday Opening
+        KovaTactileCard(
+            shape = KovaExpressiveShapes.HeroChapterCard,
+            faceColor = tactile.amberSoft.copy(alpha = 0.55f),
+            lipColor = tactile.amberLip,
+            borderColor = tactile.amberFace.copy(alpha = 0.65f),
+            lipHeight = 4.dp,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Icon(
-                    imageVector = Icons.Outlined.BookmarkAdd,
-                    contentDescription = null,
-                    tint = tactile.amberFace,
-                    modifier = Modifier.size(15.dp),
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Lightbulb,
+                        contentDescription = null,
+                        tint = tactile.amberFace,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Text(
+                        text = "1. Start with Everyday Life",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
                 Text(
-                    text = stringResource(R.string.lesson_highlight_tap_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = deepDive.realLifeOpening,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
             }
         }
 
-        // 2. Plain-English Word Breakdown Card (before code)
-        WordBreakdownSectionCard(
-            lessonId = lesson.id,
-            breakdowns = content.wordBreakdowns,
-            savedById = savedById,
-            activeBlockId = activeHighlightBlockId,
-            selectedTag = selectedTag,
-            noteDraft = noteDraft,
-            onToggleBlock = ::toggleBlockSelection,
-            onSelectTag = { tag ->
-                feedback.tap(view)
-                selectedTag = tag
-            },
-            onNoteDraftChange = { noteDraft = it },
-            onSave = { blockId, snippet ->
-                feedback.gotItChime(view)
-                onSaveHighlight(blockId, snippet, selectedTag, noteDraft)
-                activeHighlightBlockId = null
-                noteDraft = ""
-            },
-            onSendGotchaToAi = { blockId, snippet ->
-                feedback.gotItChime(view)
-                onAskAiHighlight(blockId, snippet, noteDraft)
-                activeHighlightBlockId = null
-                noteDraft = ""
-            },
-        )
-
-        // 3. Core Concept & Syntax Rules Cards
-        SectionHeadingRow(
-            icon = Icons.Outlined.Code,
-            iconTint = tactile.emeraldFace,
-            title = stringResource(R.string.lesson_section_concept_rules),
-            badgeText = "${content.conceptRules.size} RULES",
-        )
-
-        content.conceptRules.forEach { rule ->
-            val existingNote = savedById["hl_${lesson.id}_${rule.id}"]
-            ConceptRuleCard(
-                rule = rule,
-                existingHighlight = existingNote,
-                isTagBarExpanded = activeHighlightBlockId == rule.id,
-                selectedTag = selectedTag,
-                noteDraft = noteDraft,
-                onTapBlock = { toggleBlockSelection(rule.id) },
-                onSelectTag = { tag ->
-                    feedback.tap(view)
-                    selectedTag = tag
-                },
-                onNoteDraftChange = { noteDraft = it },
-                onSave = {
-                    feedback.gotItChime(view)
-                    onSaveHighlight(
-                        rule.id,
-                        "${rule.title}: ${rule.explanation}",
-                        selectedTag,
-                        noteDraft,
-                    )
-                    activeHighlightBlockId = null
-                    noteDraft = ""
-                },
-                onSendGotchaToAi = {
-                    feedback.gotItChime(view)
-                    onAskAiHighlight(
-                        rule.id,
-                        "${rule.title}: ${rule.explanation}",
-                        noteDraft,
-                    )
-                    activeHighlightBlockId = null
-                    noteDraft = ""
-                },
-            )
+        // Step 2: How Kotlin & Your Device Work
+        KovaTactileCard(
+            shape = KovaExpressiveShapes.StatAndAssignmentCard,
+            faceColor = tactile.cardFace,
+            lipColor = tactile.cardLip,
+            borderColor = tactile.cardOutline,
+            lipHeight = 4.dp,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = "2. Now Connect It to Kotlin",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = tactile.cobaltFace,
+                )
+                Text(
+                    text = deepDive.kotlinConnection,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
         }
 
-        // 4. Desired Output & Collapsible "Show Solution" Card
-        PracticeDesiredOutputCard(
-            practiceTask = content.practiceTask,
-            isSolutionVisible = isSolutionVisible,
-            onToggleSolution = {
-                feedback.tap(view)
-                isSolutionVisible = !isSolutionVisible
-            },
+        // Step 3: Exact Syntax Snippet (JetBrains Mono)
+        KovaTactileCard(
+            shape = KovaExpressiveShapes.StatAndAssignmentCard,
+            faceColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            lipColor = tactile.cobaltLip,
+            borderColor = tactile.cobaltFace.copy(alpha = 0.55f),
+            lipHeight = 4.dp,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = "3. EXACT KOTLIN SYNTAX",
+                    style = KovaMonoBadgeTextStyle,
+                    color = tactile.cobaltFace,
+                )
+                Text(
+                    text = deepDive.syntaxSnippet,
+                    style = KovaCodeTextStyle,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+        }
+
+        // Step 4: Every Symbol & Keyword Explained in Plain Words
+        KovaTactileCard(
+            shape = KovaExpressiveShapes.HeroChapterCard,
+            faceColor = tactile.cardFace,
+            lipColor = tactile.emeraldLip,
+            borderColor = tactile.emeraldFace.copy(alpha = 0.55f),
+            lipHeight = 4.dp,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(11.dp),
+            ) {
+                Text(
+                    text = "4. Every Symbol in Plain Words",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+
+                deepDive.symbolBreakdowns.forEach { piece ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.Top,
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(9.dp),
+                            color = tactile.cobaltSoft,
+                            border = BorderStroke(1.dp, tactile.cobaltFace.copy(alpha = 0.4f)),
+                        ) {
+                            Text(
+                                text = piece.symbol,
+                                style = KovaCodeTextStyle.copy(fontWeight = FontWeight.Bold),
+                                color = tactile.onCobaltSoft,
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                            )
+                        }
+                        Text(
+                            text = piece.plainWords,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+            }
+        }
+
+        // Step 5: Remember This One Rule + Bottom Back Button
+        Surface(
+            shape = RoundedCornerShape(18.dp),
+            color = tactile.emeraldSoft,
+            border = BorderStroke(1.25.dp, tactile.emeraldFace.copy(alpha = 0.65f)),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(
+                modifier = Modifier.padding(15.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    text = "ONE-LINE TAKEAWAY",
+                    style = KovaMonoBadgeTextStyle,
+                    color = tactile.onEmeraldSoft,
+                )
+                Text(
+                    text = deepDive.takeaway,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = tactile.onEmeraldSoft,
+                )
+            }
+        }
+
+        KovaTactileButton(
+            onClick = onBackToLesson,
+            faceColor = tactile.cobaltFace,
+            lipColor = tactile.cobaltLip,
+            contentColor = tactile.onCobaltFace,
+            minHeight = 48.dp,
+            lipHeight = 4.dp,
+            playTapSound = false,
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("explain_bottom_back_button"),
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                contentDescription = null,
+                tint = tactile.onCobaltFace,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = stringResource(R.string.lesson_back_to_lesson_cta),
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                color = tactile.onCobaltFace,
+            )
+        }
+    }
+}
+
+@Composable
+private fun PreHighlightedTakeawaysSection(
+    takeaways: List<PreHighlightedTakeaway>,
+) {
+    val tactile = LocalKovaTactileColors.current
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("lesson_prehighlighted_takeaways"),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        SectionHeadingRow(
+            icon = Icons.Outlined.BookmarkAdded,
+            iconTint = tactile.amberFace,
+            title = stringResource(R.string.lesson_section_key_takeaways),
+            badgeText = "${takeaways.size} HIGHLIGHTED",
         )
 
-        // 5. Real Integrated 5-Question Lesson Test Card
-        IntegratedLessonTestCard(
-            lesson = lesson,
-            questionCount = content.testQuestions.size,
-            onStartTest = {
-                feedback.pedestalPress(view)
-                onStartIntegratedTest()
-            },
-        )
+        takeaways.forEach { item ->
+            val accent = item.category.accentColor()
+            val softBg = item.category.softSurfaceColor()
+            Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = softBg,
+                border = BorderStroke(1.25.dp, accent.copy(alpha = 0.55f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("pre_highlight_${item.id}"),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(11.dp),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .padding(top = 3.dp)
+                            .width(4.dp)
+                            .height(38.dp)
+                            .clip(KovaExpressiveShapes.Pill)
+                            .background(accent),
+                    )
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            text = item.category.displayLabel().uppercase(),
+                            style = KovaMonoBadgeTextStyle,
+                            color = accent,
+                        )
+                        Text(
+                            text = item.headline,
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Text(
+                            text = item.body,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -290,22 +745,23 @@ private fun SectionHeadingRow(
         Row(
             modifier = Modifier.weight(1f),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(7.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
                 tint = iconTint,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(19.dp),
             )
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onBackground,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
         }
+        Spacer(modifier = Modifier.width(8.dp))
         KovaPillBadge(
             text = badgeText,
             containerColor = tactile.cardFace,
@@ -342,12 +798,12 @@ private fun WordBreakdownSectionCard(
             .testTag("lesson_word_breakdown_card"),
     ) {
         Column(
-            modifier = Modifier.padding(15.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(9.dp),
             ) {
                 Icon(
                     imageVector = Icons.Outlined.MenuBook,
@@ -358,7 +814,7 @@ private fun WordBreakdownSectionCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = stringResource(R.string.lesson_section_word_breakdown),
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                     Text(
@@ -385,8 +841,8 @@ private fun WordBreakdownSectionCard(
                         .testTag("highlightable_word_${item.id}"),
                 ) {
                     Column(
-                        modifier = Modifier.padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -404,13 +860,13 @@ private fun WordBreakdownSectionCard(
                         }
 
                         Text(
-                            text = "Literal meaning: ${item.literalMeaning}",
+                            text = "Plain meaning: ${item.literalMeaning}",
                             style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
                             color = MaterialTheme.colorScheme.onSurface,
                         )
 
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(7.dp),
                             verticalAlignment = Alignment.Top,
                         ) {
                             Icon(
@@ -419,7 +875,7 @@ private fun WordBreakdownSectionCard(
                                 tint = tactile.amberFace,
                                 modifier = Modifier
                                     .padding(top = 2.dp)
-                                    .size(15.dp),
+                                    .size(16.dp),
                             )
                             Text(
                                 text = item.tenYearOldAnalogy,
@@ -452,6 +908,7 @@ private fun ConceptRuleCard(
     selectedTag: HighlightCategory,
     noteDraft: String,
     onTapBlock: () -> Unit,
+    onOpenExplainFocus: () -> Unit,
     onSelectTag: (HighlightCategory) -> Unit,
     onNoteDraftChange: (String) -> Unit,
     onSave: () -> Unit,
@@ -473,8 +930,8 @@ private fun ConceptRuleCard(
             .testTag("highlightable_rule_${rule.id}"),
     ) {
         Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(9.dp),
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -483,7 +940,7 @@ private fun ConceptRuleCard(
             ) {
                 Text(
                     text = rule.title,
-                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                    style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f),
                 )
@@ -491,6 +948,7 @@ private fun ConceptRuleCard(
                 HighlightStatusPill(existing = existingHighlight)
             }
 
+            // Crisp 10-year-old summary
             Text(
                 text = rule.explanation,
                 style = MaterialTheme.typography.bodyMedium,
@@ -507,15 +965,51 @@ private fun ConceptRuleCard(
                     text = rule.codeSnippet,
                     style = KovaCodeTextStyle,
                     color = tactile.cobaltFace,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                 )
             }
 
-            Text(
-                text = "Why: ${rule.whyItMatters}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            // Tactile "Explain ->" button launching distraction-free Conversational Deep-Dive Mode
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = "Why it matters: ${rule.whyItMatters}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                KovaTactileButton(
+                    onClick = onOpenExplainFocus,
+                    faceColor = tactile.cobaltSoft,
+                    lipColor = tactile.cobaltFace.copy(alpha = 0.45f),
+                    contentColor = tactile.onCobaltSoft,
+                    minHeight = 42.dp,
+                    lipHeight = 3.dp,
+                    playTapSound = false,
+                    modifier = Modifier.testTag("explain_concept_${rule.id}"),
+                ) {
+                    Text(
+                        text = "Explain",
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                        color = tactile.onCobaltSoft,
+                        maxLines = 1,
+                        softWrap = false,
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                        contentDescription = null,
+                        tint = tactile.onCobaltSoft,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
 
             InlineHighlightTagBar(
                 visible = isTagBarExpanded,
@@ -532,7 +1026,6 @@ private fun ConceptRuleCard(
 
 @Composable
 private fun HighlightStatusPill(existing: HighlightNote?) {
-    val tactile = LocalKovaTactileColors.current
     if (existing != null) {
         val accent = existing.category.accentColor()
         KovaPillBadge(
@@ -584,13 +1077,13 @@ private fun InlineHighlightTagBar(
                 .fillMaxWidth()
                 .padding(top = 6.dp)
                 .testTag("inline_highlight_tag_bar"),
-            verticalArrangement = Arrangement.spacedBy(9.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             HorizontalDivider(thickness = 1.dp, color = tactile.cardOutline.copy(alpha = 0.7f))
 
             Text(
                 text = "TAG & SYNC TO REVISION BINDER",
-                style = KovaCodeTextStyle.copy(fontWeight = FontWeight.Bold),
+                style = KovaMonoBadgeTextStyle,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
@@ -742,54 +1235,56 @@ private fun PracticeDesiredOutputCard(
         shape = KovaExpressiveShapes.HeroChapterCard,
         faceColor = tactile.cardFace,
         lipColor = tactile.cobaltLip,
-        borderColor = tactile.cobaltFace.copy(alpha = 0.55f),
+        borderColor = tactile.cobaltFace.copy(alpha = 0.6f),
         lipHeight = 5.dp,
         modifier = Modifier
             .fillMaxWidth()
             .testTag("practice_desired_output_card"),
     ) {
         Column(
-            modifier = Modifier.padding(15.dp),
-            verticalArrangement = Arrangement.spacedBy(11.dp),
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(13.dp),
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(9.dp),
             ) {
                 Icon(
                     imageVector = Icons.Outlined.Terminal,
                     contentDescription = null,
                     tint = tactile.cobaltFace,
-                    modifier = Modifier.size(19.dp),
+                    modifier = Modifier.size(20.dp),
                 )
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "Practice Goal · ${practiceTask.title}",
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                     Text(
                         text = practiceTask.prompt,
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
 
-            // Desired Output Box
+            // Monospace Desired Output Target Box
             Surface(
                 shape = RoundedCornerShape(14.dp),
                 color = MaterialTheme.colorScheme.surfaceContainerLow,
-                border = BorderStroke(1.25.dp, tactile.emeraldFace.copy(alpha = 0.5f)),
-                modifier = Modifier.fillMaxWidth(),
+                border = BorderStroke(1.25.dp, tactile.emeraldFace.copy(alpha = 0.55f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("desired_output_box"),
             ) {
                 Column(
-                    modifier = Modifier.padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.padding(13.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp),
                 ) {
                     Text(
                         text = "DESIRED OUTPUT",
-                        style = KovaCodeTextStyle.copy(fontWeight = FontWeight.Bold),
+                        style = KovaMonoBadgeTextStyle,
                         color = tactile.emeraldFace,
                     )
                     Text(
@@ -800,13 +1295,13 @@ private fun PracticeDesiredOutputCard(
                 }
             }
 
-            // Hidden-by-default "Show Solution" toggle
+            // Collapsible "Show Solution" Card Trigger (collapsed by default)
             KovaTactileButton(
                 onClick = onToggleSolution,
                 faceColor = if (isSolutionVisible) tactile.cardElevatedFace else tactile.cobaltSoft,
                 lipColor = if (isSolutionVisible) tactile.cardLip else tactile.cobaltFace.copy(alpha = 0.45f),
                 contentColor = if (isSolutionVisible) MaterialTheme.colorScheme.onSurface else tactile.onCobaltSoft,
-                minHeight = 46.dp,
+                minHeight = 48.dp,
                 lipHeight = 4.dp,
                 playTapSound = false,
                 modifier = Modifier
@@ -848,7 +1343,7 @@ private fun PracticeDesiredOutputCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("solution_revealed_panel"),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Surface(
                         shape = RoundedCornerShape(14.dp),
@@ -857,12 +1352,12 @@ private fun PracticeDesiredOutputCard(
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Column(
-                            modifier = Modifier.padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(3.dp),
+                            modifier = Modifier.padding(13.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
                             Text(
-                                text = "CLEAN KOTLIN SOLUTION",
-                                style = KovaCodeTextStyle.copy(fontWeight = FontWeight.Bold),
+                                text = "ANNOTATED KOTLIN SOLUTION",
+                                style = KovaMonoBadgeTextStyle,
                                 color = tactile.cobaltFace,
                             )
                             Spacer(modifier = Modifier.height(2.dp))
@@ -875,7 +1370,7 @@ private fun PracticeDesiredOutputCard(
                                         text = "${idx + 1}",
                                         style = KovaCodeTextStyle,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                        modifier = Modifier.width(16.dp),
+                                        modifier = Modifier.width(18.dp),
                                     )
                                     Text(
                                         text = codeLine,
@@ -887,10 +1382,10 @@ private fun PracticeDesiredOutputCard(
                         }
                     }
 
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
                         Text(
-                            text = "LINE-BY-LINE NOTES",
-                            style = KovaCodeTextStyle.copy(fontWeight = FontWeight.Bold),
+                            text = "LINE-BY-LINE PLAIN-ENGLISH NOTES",
+                            style = KovaMonoBadgeTextStyle,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         practiceTask.lineNotes.forEach { note ->
@@ -900,14 +1395,14 @@ private fun PracticeDesiredOutputCard(
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(22.dp)
+                                        .size(24.dp)
                                         .clip(CircleShape)
                                         .background(tactile.cobaltSoft),
                                     contentAlignment = Alignment.Center,
                                 ) {
                                     Text(
                                         text = "L${note.lineNumber}",
-                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                        style = KovaMonoBadgeTextStyle,
                                         color = tactile.onCobaltSoft,
                                     )
                                 }
@@ -966,11 +1461,11 @@ private fun IntegratedLessonTestCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = stringResource(R.string.lesson_test_section_title),
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                     Text(
-                        text = "$questionCount closed-book questions · Pass >= 80% (4/$questionCount) to unlock the next node.",
+                        text = "$questionCount closed-book questions · Score at least 80% (4 of $questionCount) to unlock the next node.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -1000,7 +1495,7 @@ private fun IntegratedLessonTestCard(
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "MASTERED · ${score ?: 80}% PASSED",
-                            style = KovaCodeTextStyle.copy(fontWeight = FontWeight.Bold),
+                            style = KovaMonoBadgeTextStyle,
                             color = tactile.onEmeraldSoft,
                         )
                     }
@@ -1032,7 +1527,7 @@ private fun IntegratedLessonTestCard(
                     } else {
                         stringResource(R.string.lesson_test_start_cta)
                     },
-                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
                     color = if (isCompleted) tactile.onCobaltFace else tactile.onEmeraldFace,
                 )
             }
@@ -1044,8 +1539,8 @@ private fun IntegratedLessonTestCard(
 private fun HighlightCategory.softSurfaceColor(): Color {
     val tactile = LocalKovaTactileColors.current
     return when (this) {
-        HighlightCategory.KEY_IDEA -> tactile.amberSoft.copy(alpha = 0.55f)
-        HighlightCategory.CODE_RULE -> tactile.emeraldSoft.copy(alpha = 0.55f)
-        HighlightCategory.GOTCHA -> tactile.coralSoft.copy(alpha = 0.55f)
+        HighlightCategory.KEY_IDEA -> tactile.amberSoft.copy(alpha = 0.6f)
+        HighlightCategory.CODE_RULE -> tactile.emeraldSoft.copy(alpha = 0.6f)
+        HighlightCategory.GOTCHA -> tactile.coralSoft.copy(alpha = 0.6f)
     }
 }

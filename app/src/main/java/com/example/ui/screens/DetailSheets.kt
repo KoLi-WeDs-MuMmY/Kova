@@ -70,6 +70,10 @@ fun DetailSheetHost(
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope,
     onClose: () -> Unit,
+    onUnlockLessonDebugger: (lessonId: String) -> Unit,
+    onUpdateLessonScrollPosition: (lessonId: String, scrollOffset: Int) -> Unit,
+    onSetLessonExplainRule: (lessonId: String, ruleId: String?) -> Unit,
+    onOpenAiFromLesson: (lessonId: String) -> Unit,
     onCycleSplitRatio: () -> Unit,
     onSetSplitRatio: (LessonSplitRatio) -> Unit,
     onSaveLessonHighlight: (lessonId: String, blockId: String, snippet: String, category: HighlightCategory, learnerNote: String) -> Unit,
@@ -105,6 +109,17 @@ fun DetailSheetHost(
                             chapterProgress = chapterProgress,
                             dailyRemaining = uiState.quota.dailyLessonsRemaining,
                             splitRatio = uiState.lessonSplitRatio,
+                            isDebuggerUnlocked = uiState.isDebuggerUnlockedFor(lesson.id),
+                            savedScrollPosition = uiState.scrollPositionFor(lesson.id),
+                            activeExplainRuleId = uiState.activeExplainRuleFor(lesson.id),
+                            onScrollPositionChanged = { offset ->
+                                onUpdateLessonScrollPosition(lesson.id, offset)
+                            },
+                            onActiveExplainRuleChanged = { ruleId ->
+                                onSetLessonExplainRule(lesson.id, ruleId)
+                            },
+                            onUnlockDebugger = { onUnlockLessonDebugger(lesson.id) },
+                            onOpenAiFromLesson = { onOpenAiFromLesson(lesson.id) },
                             onCycleSplitRatio = onCycleSplitRatio,
                             onSetSplitRatio = onSetSplitRatio,
                             onSaveHighlight = { blockId, snippet, category, note ->

@@ -25,12 +25,16 @@
     <string name="assignment_optional_hint">Unlocked after Lesson 1.4 · Required before Chapter 2</string>
     <string name="tablet_side_progress_title">Mastery Telemetry</string>
 
-    <!-- Phase 2 Interactive Lesson Engine -->
+    <!-- Phase 2 & 2.1 Interactive Lesson Engine -->
     <string name="phase2_lesson_tag">INTERACTIVE LESSON ENGINE</string>
-    <string name="lesson_highlight_tap_hint">Tap any word card or rule below to highlight into Revision</string>
+    <string name="lesson_highlight_tap_hint">Tap any word card or rule to save a highlight into Revision</string>
     <string name="lesson_section_word_breakdown">Plain-English Word Breakdown</string>
     <string name="lesson_word_breakdown_subtitle">Everyday meanings before any Kotlin code</string>
-    <string name="lesson_section_concept_rules">Core Concept &amp; Syntax Rules</string>
+    <string name="lesson_section_key_takeaways">Pre-Highlighted Key Takeaways</string>
+    <string name="lesson_section_concept_rules">Core Concepts &amp; Everyday Rules</string>
+    <string name="lesson_explain_cta">Explain →</string>
+    <string name="lesson_back_to_lesson_cta">← Back to Lesson</string>
+    <string name="lesson_explain_badge">CONVERSATIONAL DEEP-DIVE</string>
     <string name="lesson_highlight_note_placeholder">Optional personal note (saved to Revision)…</string>
     <string name="lesson_highlight_save_cta">Save Highlight</string>
     <string name="lesson_highlight_send_ai_cta">Send to AI</string>
@@ -45,6 +49,7 @@
     <string name="lesson_test_passed_badge">MASTERED · 85% PASSED</string>
     <string name="lesson_test_subtitle">Passing (&gt;=80%) unlocks the next pedestal along your quest path and uses 1 daily lesson slot.</string>
     <string name="cd_highlight_block">Highlight this lesson concept into your Revision Binder</string>
+    <string name="exit_press_back_again">Press back again to exit Kova</string>
 
     <!-- Lab Screen -->
     <string name="lab_assignments_title">Chapter Assignments Hub</string>
@@ -64,6 +69,7 @@
     <string name="ai_save_to_notes">Save to Notes</string>
     <string name="ai_saved_to_notes">Saved to Notes</string>
     <string name="cd_open_history">Open chat history drawer</string>
+    <string name="cd_toggle_ai_status">Toggle AI quota and active lesson status</string>
     <string name="cd_send_message">Send message to scoped tutor</string>
     <string name="cd_pin_thread">Pin or unpin thread</string>
     <string name="cd_delete_thread">Delete chat thread</string>
@@ -86,10 +92,17 @@
     <string name="filter_code_rule">Code Rule</string>
     <string name="filter_gotcha">Gotcha</string>
 
-    <!-- Lesson Focus & Split-Screen Debugger -->
-    <string name="lesson_ide_header">Guided Code Debugger</string>
-    <string name="lesson_ide_ready_badge">STEP-BY-STEP</string>
-    <string name="lesson_ide_empty_hint">Step through Kotlin code lines and watch live variable values update.</string>
+    <!-- Lesson Focus & Kotlin IDE Workspace -->
+    <string name="lesson_ide_header">Kotlin IDE Workspace</string>
+    <string name="lesson_ide_ready_badge">PRACTICE MODE</string>
+    <string name="lesson_ide_empty_hint">Edit Kotlin code in Main.kt or unlock the step-by-step debugger.</string>
+    <string name="ide_unlock_debugger_cta">Unlock Debugger</string>
+    <string name="ide_debugger_active_cta">Debugger ON</string>
+    <string name="ide_practice_mode_cta">Code Mode</string>
+    <string name="ide_run_check_cta">Run / Check</string>
+    <string name="ide_reset_code_cta">Reset</string>
+    <string name="ide_desired_output_label">DESIRED OUTPUT</string>
+    <string name="ide_actual_output_label">ACTUAL RUN OUTPUT</string>
     <string name="debugger_variable_watch_title">VARIABLE &amp; STATE WATCH</string>
     <string name="debugger_console_output_title">LIVE CONSOLE OUTPUT</string>
     <string name="cd_debugger_reset">Reset debugger to line 1</string>

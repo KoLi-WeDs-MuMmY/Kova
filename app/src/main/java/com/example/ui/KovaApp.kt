@@ -1,6 +1,8 @@
 package com.example.ui
 
+import android.app.Activity
 import android.os.Build
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalSharedTransitionApi
@@ -62,7 +64,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -98,8 +102,8 @@ import com.example.ui.screens.FlashcardFocusStageOverlay
 import com.example.ui.screens.LabScreen
 import com.example.ui.screens.LearnScreen
 import com.example.ui.screens.RevisionScreen
-import com.example.ui.theme.KovaCodeTextStyle
 import com.example.ui.theme.KovaExpressiveShapes
+import com.example.ui.theme.KovaMonoBadgeTextStyle
 import com.example.ui.theme.KovaTheme
 import com.example.ui.theme.LocalKovaMotion
 import com.example.ui.theme.LocalKovaTactileColors
@@ -193,6 +197,13 @@ fun KovaApp(
                     onNoteClick = viewModel::openNote,
                     onRevisionSheetClick = viewModel::openRevisionSheet,
                     onCloseDetail = viewModel::closeDetail,
+                    onUnlockLessonDebugger = viewModel::unlockLessonDebugger,
+                    onUpdateLessonScrollPosition = viewModel::updateLessonScrollPosition,
+                    onSetLessonExplainRule = viewModel::setLessonExplainRule,
+                    onOpenAiFromLesson = viewModel::openAiFromLesson,
+                    onReturnFromAiToLesson = { viewModel.returnFromAiToLesson() },
+                    onNavigateBackToLearnHome = viewModel::navigateBackToLearnHome,
+                    onShowExitPromptSnackbar = viewModel::showExitPromptSnackbar,
                     onCycleSplitRatio = viewModel::cycleLessonSplitRatio,
                     onSetSplitRatio = viewModel::setLessonSplitRatio,
                     onSaveLessonHighlight = viewModel::saveLessonHighlight,
@@ -260,6 +271,13 @@ private fun KovaShellContent(
     onNoteClick: (String) -> Unit,
     onRevisionSheetClick: (String) -> Unit,
     onCloseDetail: () -> Unit,
+    onUnlockLessonDebugger: (String) -> Unit,
+    onUpdateLessonScrollPosition: (String, Int) -> Unit,
+    onSetLessonExplainRule: (String, String?) -> Unit,
+    onOpenAiFromLesson: (String) -> Unit,
+    onReturnFromAiToLesson: () -> Unit,
+    onNavigateBackToLearnHome: () -> Unit,
+    onShowExitPromptSnackbar: (String) -> Unit,
     onCycleSplitRatio: () -> Unit,
     onSetSplitRatio: (LessonSplitRatio) -> Unit,
     onSaveLessonHighlight: (String, String, String, HighlightCategory, String) -> Unit,
@@ -292,7 +310,43 @@ private fun KovaShellContent(
 ) {
     val motion = LocalKovaMotion.current
     val tactile = LocalKovaTactileColors.current
+    val context = LocalContext.current
+    val exitPromptMessage = stringResource(R.string.exit_press_back_again)
+    var lastHomeBackPressMs by remember { mutableLongStateOf(0L) }
     val showGlobalChrome = !uiState.isGlobalChromeHidden
+
+    // Smart System Back-Navigation:
+    // 1) Lesson -> Full-Screen AI -> Back returns directly to that exact lesson
+    // 2) Chapter Focus -> Back returns to Learn Overview
+    // 3) Any other tab (Lab, AI opened directly, Revision) -> Back returns to Learn Home
+    // 4) Learn Home Overview -> Double-Back within 2s exits the app gracefully
+    val isRootShellBackEnabled = uiState.activeDetail == null &&
+        !uiState.isFlashcardFocusStageOpen &&
+        !uiState.isChapterAiSheetOpen &&
+        !uiState.isSettingsOpen
+
+    BackHandler(enabled = isRootShellBackEnabled) {
+        when {
+            uiState.selectedTab == KovaTab.AI && uiState.returnToLessonIdAfterAi != null -> {
+                onReturnFromAiToLesson()
+            }
+            uiState.selectedTab == KovaTab.LEARN && uiState.focusedChapterId != null -> {
+                onCloseChapterFocus()
+            }
+            uiState.selectedTab != KovaTab.LEARN -> {
+                onNavigateBackToLearnHome()
+            }
+            else -> {
+                val now = System.currentTimeMillis()
+                if (now - lastHomeBackPressMs <= 2_000L) {
+                    (context as? Activity)?.finish()
+                } else {
+                    lastHomeBackPressMs = now
+                    onShowExitPromptSnackbar(exitPromptMessage)
+                }
+            }
+        }
+    }
 
     // Smooth Focus Fade for app chrome when entering a lesson, chapter focus, or flashcard stage
     val chromeAlpha by animateFloatAsState(
@@ -359,6 +413,10 @@ private fun KovaShellContent(
                             sharedTransitionScope = this@SharedTransitionLayout,
                             animatedVisibilityScope = this@AnimatedContent,
                             onClose = onCloseDetail,
+                            onUnlockLessonDebugger = onUnlockLessonDebugger,
+                            onUpdateLessonScrollPosition = onUpdateLessonScrollPosition,
+                            onSetLessonExplainRule = onSetLessonExplainRule,
+                            onOpenAiFromLesson = onOpenAiFromLesson,
                             onCycleSplitRatio = onCycleSplitRatio,
                             onSetSplitRatio = onSetSplitRatio,
                             onSaveLessonHighlight = onSaveLessonHighlight,
@@ -452,6 +510,7 @@ private fun KovaShellContent(
                                                 onInsertQuickPrompt = onInsertQuickPrompt,
                                                 onSendMessage = onSendChatMessage,
                                                 onSaveMessageToNotes = onSaveMessageToNotes,
+                                                onReturnToLesson = onReturnFromAiToLesson,
                                             )
                                             KovaTab.REVISION -> RevisionScreen(
                                                 uiState = uiState,
@@ -638,7 +697,7 @@ private fun KovaTopBar(
                         ) {
                             Text(
                                 text = "DEV",
-                                style = KovaCodeTextStyle.copy(fontWeight = FontWeight.Bold),
+                                style = KovaMonoBadgeTextStyle,
                                 color = tactile.onCoralSoft,
                                 maxLines = 1,
                                 softWrap = false,
@@ -650,7 +709,7 @@ private fun KovaTopBar(
                 if (!isCompactFloating) {
                     Text(
                         text = stringResource(R.string.brand_subtitle),
-                        style = KovaCodeTextStyle,
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,

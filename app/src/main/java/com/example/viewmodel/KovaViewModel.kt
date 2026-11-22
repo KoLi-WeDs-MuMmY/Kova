@@ -17,6 +17,7 @@ import com.example.data.local.PersistedLessonState
 import com.example.data.local.RoomStudyPersistenceRepository
 import com.example.data.local.StudyPersistenceRepository
 import com.example.data.local.currentLocalDateIso
+import com.example.model.AiTutorStatus
 import com.example.model.Chapter
 import com.example.model.ChatMessage
 import com.example.model.ChatThread
@@ -68,6 +69,7 @@ class KovaViewModel(
 
     private val vmScope = CoroutineScope(SupervisorJob() + workDispatcher)
     private var sprintTimerJob: Job? = null
+    private var aiStatusJob: Job? = null
 
     // Optimistic per-thread message buffer ensuring Room emissions can NEVER drop newly sent messages
     private val pendingLock = Any()
@@ -153,6 +155,7 @@ class KovaViewModel(
 
     override fun onCleared() {
         sprintTimerJob?.cancel()
+        aiStatusJob?.cancel()
         persistSnapshot(_uiState.value)
         vmScope.cancel()
         super.onCleared()
@@ -277,6 +280,10 @@ class KovaViewModel(
             flashcardSprint = restoredSprint,
             quota = restoredQuota,
             lessonSplitRatio = restoredSplitRatio,
+            lastActiveLessonId = saved.lastActiveLessonId,
+            unlockedDebuggerLessonIds = saved.unlockedDebuggerLessonIds,
+            lessonScrollPositions = saved.lessonScrollPositions,
+            activeExplainRuleByLesson = saved.activeExplainRuleByLesson,
             themeMode = restoredTheme,
             dynamicColorEnabled = saved.dynamicColorEnabled,
             expressiveMotionEnabled = saved.expressiveMotionEnabled,
@@ -331,6 +338,10 @@ class KovaViewModel(
                 sprintCurrentIndex = state.flashcardSprint.currentIndex,
                 lessonStates = lessonStates,
                 chapterStates = chapterStates,
+                unlockedDebuggerLessonIds = state.unlockedDebuggerLessonIds,
+                lessonScrollPositions = state.lessonScrollPositions,
+                activeExplainRuleByLesson = state.activeExplainRuleByLesson,
+                lastActiveLessonId = state.lastActiveLessonId,
             ),
         )
     }
@@ -368,8 +379,66 @@ class KovaViewModel(
                 focusedChapterId = if (tab == KovaTab.LEARN) state.focusedChapterId else null,
                 isChapterAiSheetOpen = false,
                 isFlashcardFocusStageOpen = false,
+                returnToLessonIdAfterAi = null,
+                returnToChapterIdAfterAi = null,
             )
         }
+    }
+
+    fun navigateBackToLearnHome() {
+        if (_uiState.value.flashcardSprint.isRunning) {
+            pauseFlashcardSprint()
+        }
+        _uiState.update { state ->
+            state.copy(
+                selectedTab = KovaTab.LEARN,
+                activeDetail = null,
+                focusedChapterId = null,
+                isChapterAiSheetOpen = false,
+                isFlashcardFocusStageOpen = false,
+                returnToLessonIdAfterAi = null,
+                returnToChapterIdAfterAi = null,
+            )
+        }
+    }
+
+    fun openAiFromLesson(lessonId: String) {
+        val current = _uiState.value
+        val lesson = current.findLesson(lessonId) ?: return
+        val matchingThread = current.chatThreads.firstOrNull { it.lessonCode == lesson.code }
+            ?: current.activeThread
+        _uiState.update { state ->
+            state.copy(
+                activeDetail = null,
+                isChapterAiSheetOpen = false,
+                selectedTab = KovaTab.AI,
+                activeThreadId = matchingThread?.id ?: state.activeThreadId,
+                returnToLessonIdAfterAi = lessonId,
+                returnToChapterIdAfterAi = state.focusedChapterId ?: lesson.chapterId,
+            )
+        }
+        persistSnapshot()
+    }
+
+    fun returnFromAiToLesson(): Boolean {
+        val current = _uiState.value
+        val targetLessonId = current.returnToLessonIdAfterAi ?: return false
+        val targetChapterId = current.returnToChapterIdAfterAi
+        _uiState.update { state ->
+            state.copy(
+                selectedTab = KovaTab.LEARN,
+                focusedChapterId = targetChapterId,
+                activeDetail = DetailDestination.LessonDetail(targetLessonId),
+                isChapterAiSheetOpen = false,
+                returnToLessonIdAfterAi = null,
+                returnToChapterIdAfterAi = null,
+            )
+        }
+        return true
+    }
+
+    fun showExitPromptSnackbar(message: String = "Press back again to exit Kova") {
+        _uiState.update { it.copy(snackbarMessage = message) }
     }
 
     fun toggleChapterExpanded(chapterId: String) {
@@ -470,9 +539,11 @@ class KovaViewModel(
         _uiState.update {
             it.copy(
                 activeDetail = DetailDestination.LessonDetail(lessonId),
+                lastActiveLessonId = lessonId,
                 newlyCompletedLessonInSession = null,
             )
         }
+        persistSnapshot()
     }
 
     fun openAssignment(assignmentId: String, originPrefix: String) {
@@ -539,6 +610,55 @@ class KovaViewModel(
             state.copy(lessonSplitRatio = ratio)
         }
         persistSnapshot()
+    }
+
+    fun unlockLessonDebugger(lessonId: String) {
+        _uiState.update { state ->
+            state.copy(
+                unlockedDebuggerLessonIds = state.unlockedDebuggerLessonIds + lessonId,
+            )
+        }
+        persistSnapshot()
+    }
+
+    fun setLessonDebuggerUnlocked(lessonId: String, unlocked: Boolean) {
+        _uiState.update { state ->
+            val updated = if (unlocked) {
+                state.unlockedDebuggerLessonIds + lessonId
+            } else {
+                state.unlockedDebuggerLessonIds - lessonId
+            }
+            state.copy(unlockedDebuggerLessonIds = updated)
+        }
+        persistSnapshot()
+    }
+
+    fun updateLessonScrollPosition(lessonId: String, scrollOffset: Int) {
+        val clamped = scrollOffset.coerceAtLeast(0)
+        if (_uiState.value.lessonScrollPositions[lessonId] == clamped) return
+        _uiState.update { state ->
+            state.copy(
+                lessonScrollPositions = state.lessonScrollPositions + (lessonId to clamped),
+            )
+        }
+        persistSnapshot()
+    }
+
+    fun setLessonExplainRule(lessonId: String, ruleId: String?) {
+        if (_uiState.value.activeExplainRuleByLesson[lessonId] == ruleId) return
+        _uiState.update { state ->
+            val updated = if (ruleId == null) {
+                state.activeExplainRuleByLesson - lessonId
+            } else {
+                state.activeExplainRuleByLesson + (lessonId to ruleId)
+            }
+            state.copy(activeExplainRuleByLesson = updated)
+        }
+        persistSnapshot()
+    }
+
+    fun setAiTutorStatus(status: AiTutorStatus) {
+        _uiState.update { it.copy(aiTutorStatus = status) }
     }
 
     fun passLessonMockTest(lessonId: String, scorePercent: Int = 85) {
@@ -730,6 +850,8 @@ class KovaViewModel(
                 selectedTab = KovaTab.AI,
                 activeThreadId = matchingThread?.id ?: current.activeThreadId,
                 chatComposerText = prompt,
+                returnToLessonIdAfterAi = lessonId,
+                returnToChapterIdAfterAi = current.focusedChapterId ?: lesson.chapterId,
                 snackbarMessage = "Saved Gotcha to Revision & loaded into AI Tutor draft.",
             )
         }
@@ -957,6 +1079,7 @@ class KovaViewModel(
         val newBatch = listOf(userMsg, phase3StatusMsg)
         recordPendingMessages(updatedThread.id, newBatch)
 
+        val wasOffline = state.aiTutorStatus == AiTutorStatus.OFFLINE
         _uiState.update { current ->
             val updatedThreads = (listOf(updatedThread) + current.chatThreads.filterNot { it.id == updatedThread.id })
                 .sortedWith(compareByDescending<ChatThread> { it.isPinned }.thenByDescending { it.updatedAtMillis })
@@ -970,6 +1093,7 @@ class KovaViewModel(
                 activeThreadId = updatedThread.id,
                 activeThreadMessages = baseMessages + newBatch,
                 chatComposerText = "",
+                aiTutorStatus = if (wasOffline) AiTutorStatus.OFFLINE else AiTutorStatus.THINKING,
                 quota = current.quota.copy(
                     activeAiPoolRemaining = (current.quota.activeAiPoolRemaining - 1).coerceAtLeast(0),
                 ),
@@ -980,6 +1104,20 @@ class KovaViewModel(
 
         vmScope.launch {
             persistence.appendMessages(updatedThread, newBatch)
+        }
+
+        if (!wasOffline) {
+            aiStatusJob?.cancel()
+            aiStatusJob = vmScope.launch(timerDispatcher) {
+                delay(420L)
+                _uiState.update { current ->
+                    if (current.aiTutorStatus == AiTutorStatus.THINKING) {
+                        current.copy(aiTutorStatus = AiTutorStatus.READY)
+                    } else {
+                        current
+                    }
+                }
+            }
         }
     }
 

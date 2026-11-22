@@ -10,6 +10,12 @@ enum class KovaTab {
     REVISION,
 }
 
+enum class AiTutorStatus(val label: String) {
+    READY("Ready"),
+    THINKING("Thinking"),
+    OFFLINE("Offline"),
+}
+
 enum class LessonStatus {
     COMPLETED,
     UNLOCKED,
@@ -66,12 +72,37 @@ data class WordBreakdown(
 )
 
 @Immutable
+data class SymbolBreakdown(
+    val symbol: String,
+    val plainWords: String,
+)
+
+@Immutable
+data class ExplainDeepDive(
+    val headline: String,
+    val realLifeOpening: String,
+    val kotlinConnection: String,
+    val syntaxSnippet: String,
+    val symbolBreakdowns: List<SymbolBreakdown>,
+    val takeaway: String,
+)
+
+@Immutable
+data class PreHighlightedTakeaway(
+    val id: String,
+    val category: HighlightCategory,
+    val headline: String,
+    val body: String,
+)
+
+@Immutable
 data class ConceptRule(
     val id: String,
     val title: String,
     val explanation: String,
     val codeSnippet: String,
     val whyItMatters: String,
+    val explainDeepDive: ExplainDeepDive,
 )
 
 @Immutable
@@ -87,6 +118,9 @@ data class PracticeTaskSpec(
     val desiredOutput: String,
     val solutionCode: String,
     val lineNotes: List<PracticeSolutionNote>,
+    val starterCode: String = "",
+    val expectedKeywords: List<String> = emptyList(),
+    val editorHint: String = "",
 )
 
 enum class CodeLineRole(val badgeLabel: String) {
@@ -150,6 +184,7 @@ data class LessonTestQuestion(
 @Immutable
 data class LessonInteractiveContent(
     val wordBreakdowns: List<WordBreakdown>,
+    val preHighlightedTakeaways: List<PreHighlightedTakeaway> = emptyList(),
     val conceptRules: List<ConceptRule>,
     val practiceTask: PracticeTaskSpec,
     val debugger: DebuggerWalkthrough,
@@ -371,6 +406,13 @@ data class KovaUiState(
     val isFlashcardFocusStageOpen: Boolean = false,
     val isAiHistoryVisible: Boolean? = null,
     val lessonSplitRatio: LessonSplitRatio = LessonSplitRatio.RATIO_75_25,
+    val aiTutorStatus: AiTutorStatus = AiTutorStatus.READY,
+    val returnToLessonIdAfterAi: String? = null,
+    val returnToChapterIdAfterAi: String? = null,
+    val lastActiveLessonId: String? = null,
+    val unlockedDebuggerLessonIds: Set<String> = emptySet(),
+    val lessonScrollPositions: Map<String, Int> = emptyMap(),
+    val activeExplainRuleByLesson: Map<String, String> = emptyMap(),
     val newlyCompletedLessonInSession: String? = null,
     val lessonReturnEvent: LessonReturnEvent? = null,
     val themeMode: ThemeMode = ThemeMode.WARM_DAYLIGHT,
@@ -385,6 +427,18 @@ data class KovaUiState(
 ) {
     val isLessonFocusMode: Boolean
         get() = activeDetail is DetailDestination.LessonDetail
+
+    val isDebuggerUnlocked: Boolean
+        get() {
+            val detail = activeDetail as? DetailDestination.LessonDetail ?: return false
+            return detail.lessonId in unlockedDebuggerLessonIds
+        }
+
+    fun isDebuggerUnlockedFor(lessonId: String): Boolean = lessonId in unlockedDebuggerLessonIds
+
+    fun scrollPositionFor(lessonId: String): Int = lessonScrollPositions[lessonId] ?: 0
+
+    fun activeExplainRuleFor(lessonId: String): String? = activeExplainRuleByLesson[lessonId]
 
     val isChapterFocusMode: Boolean
         get() = selectedTab == KovaTab.LEARN && focusedChapterId != null

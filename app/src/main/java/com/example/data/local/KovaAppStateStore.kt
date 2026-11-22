@@ -35,6 +35,10 @@ data class PersistedAppState(
     val sprintCurrentIndex: Int = 0,
     val lessonStates: Map<String, PersistedLessonState> = emptyMap(),
     val chapterStates: Map<String, PersistedChapterState> = emptyMap(),
+    val unlockedDebuggerLessonIds: Set<String> = emptySet(),
+    val lessonScrollPositions: Map<String, Int> = emptyMap(),
+    val activeExplainRuleByLesson: Map<String, String> = emptyMap(),
+    val lastActiveLessonId: String? = null,
 )
 
 interface KovaAppStateStore {
@@ -154,7 +158,36 @@ class FileKovaAppStateStore(
                 sb.appendField("assignmentCompleted", cs.assignmentCompleted.toString())
                 sb.append('}')
             }
-            sb.append("}}")
+            sb.append("},")
+
+            sb.append("\"unlockedDebuggerLessonIds\":[")
+            state.unlockedDebuggerLessonIds.forEachIndexed { idx, id ->
+                if (idx > 0) sb.append(',')
+                sb.appendJsonString(id)
+            }
+            sb.append("],")
+
+            sb.append("\"lessonScrollPositions\":{")
+            state.lessonScrollPositions.entries.forEachIndexed { idx, (lessonId, offset) ->
+                if (idx > 0) sb.append(',')
+                sb.appendJsonString(lessonId).append(':').append(offset.coerceAtLeast(0))
+            }
+            sb.append("},")
+
+            sb.append("\"activeExplainRuleByLesson\":{")
+            state.activeExplainRuleByLesson.entries.forEachIndexed { idx, (lessonId, ruleId) ->
+                if (idx > 0) sb.append(',')
+                sb.appendJsonString(lessonId).append(':').appendJsonString(ruleId)
+            }
+            sb.append("},")
+
+            sb.append("\"lastActiveLessonId\":")
+            if (state.lastActiveLessonId == null) {
+                sb.append("null")
+            } else {
+                sb.appendJsonString(state.lastActiveLessonId)
+            }
+            sb.append('}')
             return sb.toString()
         }
 
@@ -193,6 +226,27 @@ class FileKovaAppStateStore(
                 }
             }
 
+            val unlockedDebuggers = (root["unlockedDebuggerLessonIds"] as? List<Any?>)
+                ?.mapNotNull { it as? String }
+                ?.toSet()
+                ?: emptySet()
+
+            val scrollMapRaw = root["lessonScrollPositions"] as? Map<String, Any?> ?: emptyMap()
+            val lessonScrollPositions = buildMap {
+                scrollMapRaw.forEach { (lessonId, value) ->
+                    val offset = (value as? Number)?.toInt() ?: return@forEach
+                    put(lessonId, offset.coerceAtLeast(0))
+                }
+            }
+
+            val explainMapRaw = root["activeExplainRuleByLesson"] as? Map<String, Any?> ?: emptyMap()
+            val activeExplainRuleByLesson = buildMap {
+                explainMapRaw.forEach { (lessonId, value) ->
+                    val ruleId = value as? String ?: return@forEach
+                    put(lessonId, ruleId)
+                }
+            }
+
             return PersistedAppState(
                 schemaVersion = (root["schemaVersion"] as? Number)?.toInt() ?: 1,
                 themeModeName = root["themeModeName"] as? String ?: "WARM_DAYLIGHT",
@@ -212,6 +266,10 @@ class FileKovaAppStateStore(
                 sprintCurrentIndex = (root["sprintCurrentIndex"] as? Number)?.toInt() ?: 0,
                 lessonStates = lessonStates,
                 chapterStates = chapterStates,
+                unlockedDebuggerLessonIds = unlockedDebuggers,
+                lessonScrollPositions = lessonScrollPositions,
+                activeExplainRuleByLesson = activeExplainRuleByLesson,
+                lastActiveLessonId = root["lastActiveLessonId"] as? String,
             )
         }
 

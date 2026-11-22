@@ -35,6 +35,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.filled.BookmarkAdded
 import androidx.compose.material.icons.filled.PushPin
@@ -45,6 +46,7 @@ import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Lock
@@ -52,6 +54,7 @@ import androidx.compose.material.icons.outlined.OpenInFull
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.ViewSidebar
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -68,6 +71,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
@@ -76,18 +80,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.R
+import com.example.model.AiTutorStatus
 import com.example.model.ChatMessage
 import com.example.model.ChatThread
 import com.example.model.HighlightCategory
 import com.example.model.KovaUiState
 import com.example.ui.components.KovaAiEmblem
-import com.example.ui.components.KovaAiWelcomeEmblemCard
 import com.example.ui.components.KovaPillBadge
 import com.example.ui.components.KovaTactileButton
 import com.example.ui.components.KovaTactileCard
 import com.example.ui.feedback.LocalKovaFeedback
 import com.example.ui.theme.KovaCodeTextStyle
 import com.example.ui.theme.KovaExpressiveShapes
+import com.example.ui.theme.KovaMonoBadgeTextStyle
 import com.example.ui.theme.LocalKovaMotion
 import com.example.ui.theme.LocalKovaTactileColors
 
@@ -113,6 +118,7 @@ fun AiScreen(
     onInsertQuickPrompt: (String) -> Unit,
     onSendMessage: () -> Unit,
     onSaveMessageToNotes: (String, HighlightCategory) -> Unit,
+    onReturnToLesson: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val motion = LocalKovaMotion.current
@@ -167,8 +173,9 @@ fun AiScreen(
                     isWideTabletLayout = true,
                     isHistoryVisible = isHistoryVisible,
                     showHistoryToggle = true,
-                    bottomInsetPadding = 14.dp,
+                    bottomInsetPadding = 12.dp,
                     onToggleHistory = { onToggleHistoryVisibility(true) },
+                    onReturnToLesson = onReturnToLesson,
                     onUpdateComposerText = onUpdateComposerText,
                     onInsertQuickPrompt = onInsertQuickPrompt,
                     onSendMessage = onSendMessage,
@@ -184,8 +191,9 @@ fun AiScreen(
                 isWideTabletLayout = false,
                 isHistoryVisible = isHistoryVisible,
                 showHistoryToggle = true,
-                bottomInsetPadding = 94.dp,
+                bottomInsetPadding = 90.dp,
                 onToggleHistory = { onToggleHistoryVisibility(false) },
+                onReturnToLesson = onReturnToLesson,
                 onUpdateComposerText = onUpdateComposerText,
                 onInsertQuickPrompt = onInsertQuickPrompt,
                 onSendMessage = onSendMessage,
@@ -379,6 +387,7 @@ fun ChapterScopedAiSheet(
                     showHistoryToggle = false,
                     bottomInsetPadding = 6.dp,
                     onToggleHistory = {},
+                    onReturnToLesson = {},
                     onUpdateComposerText = onUpdateComposerText,
                     onInsertQuickPrompt = onInsertQuickPrompt,
                     onSendMessage = onSendMessage,
@@ -398,6 +407,7 @@ private fun AiChatMainPane(
     showHistoryToggle: Boolean,
     bottomInsetPadding: androidx.compose.ui.unit.Dp,
     onToggleHistory: () -> Unit,
+    onReturnToLesson: () -> Unit,
     onUpdateComposerText: (String) -> Unit,
     onInsertQuickPrompt: (String) -> Unit,
     onSendMessage: () -> Unit,
@@ -414,151 +424,246 @@ private fun AiChatMainPane(
         "Lesson ${activeThread.lessonCode} · ${activeThread.lessonTitle}"
     } else {
         val activeLesson = uiState.activeLesson
-        "Lesson ${activeLesson?.code ?: "1.1"} · ${activeLesson?.title ?: "Variables & Boxes"}"
+        "Lesson ${activeLesson?.code ?: "1.1"} · ${activeLesson?.title ?: "Words & Variables"}"
     }
-    val showWelcomeEmblem = messages.none { it.isFromUser }
+    val activeLessonCode = activeThread?.lessonCode ?: uiState.activeLesson?.code ?: "1.1"
+    val returnLesson = uiState.returnToLessonIdAfterAi?.let { uiState.findLesson(it) }
+    var isStatusPopoverOpen by remember { mutableStateOf(false) }
+
+    val statusDotColor = when (uiState.aiTutorStatus) {
+        AiTutorStatus.READY -> tactile.emeraldFace
+        AiTutorStatus.THINKING -> tactile.amberFace
+        AiTutorStatus.OFFLINE -> tactile.coralFace
+    }
 
     LaunchedEffect(messages.size, activeThread?.id) {
-        val totalItems = messages.size + if (showWelcomeEmblem) 1 else 0
-        if (totalItems > 0) {
-            listState.animateScrollToItem(totalItems - 1)
+        if (messages.isNotEmpty()) {
+            listState.animateScrollToItem(messages.lastIndex)
         }
     }
 
     Column(
         modifier = modifier.padding(bottom = bottomInsetPadding),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        // Structured Header: Active Lesson Pill + Collapsible Session Selector + 3-Metric Quota Summary
-        KovaTactileCard(
-            shape = KovaExpressiveShapes.StatAndAssignmentCard,
-            faceColor = tactile.cardFace,
-            lipColor = tactile.cobaltLip,
-            borderColor = tactile.cobaltFace.copy(alpha = 0.55f),
-            lipHeight = 4.dp,
+        // Minimal Single-Row Utility Strip: Optional Return-to-Lesson Pill, Compact Corner Status Pill
+        // (Ready / Thinking / Offline with expandable quota popover), and History Drawer Toggle.
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .padding(vertical = 2.dp)
                 .testTag("ai_context_quota_strip"),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+            if (showHistoryToggle && returnLesson != null) {
+                Surface(
+                    onClick = {
+                        feedback.tap(view)
+                        onReturnToLesson()
+                    },
+                    shape = KovaExpressiveShapes.Pill,
+                    color = tactile.emeraldSoft,
+                    border = BorderStroke(1.dp, tactile.emeraldFace.copy(alpha = 0.55f)),
+                    modifier = Modifier
+                        .height(36.dp)
+                        .testTag("ai_return_to_lesson_pill"),
                 ) {
-                    if (showHistoryToggle) {
-                        KovaAiEmblem(
-                            size = 38.dp,
-                            lipHeight = 3.dp,
-                            modifier = Modifier.testTag("ai_header_emblem"),
-                        )
-                    }
-
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(3.dp),
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        if (showHistoryToggle) {
-                            Text(
-                                text = "Kova AI Tutor",
-                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                        KovaPillBadge(
-                            text = scopedLabel,
-                            leadingIcon = Icons.Outlined.Lock,
-                            containerColor = tactile.cobaltSoft,
-                            contentColor = tactile.onCobaltSoft,
-                            borderColor = Color.Transparent,
-                            useMonospace = false,
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = "Return to Lesson ${returnLesson.code}",
+                            tint = tactile.onEmeraldSoft,
+                            modifier = Modifier.size(14.dp),
+                        )
+                        Text(
+                            text = "Back to L${returnLesson.code}",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            color = tactile.onEmeraldSoft,
+                            maxLines = 1,
+                            softWrap = false,
                         )
                     }
+                }
+            } else if (showHistoryToggle) {
+                Text(
+                    text = scopedLabel,
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+            }
 
-                    if (showHistoryToggle) {
-                        Surface(
-                            onClick = {
-                                feedback.tap(view)
-                                onToggleHistory()
-                            },
-                            shape = KovaExpressiveShapes.Pill,
-                            color = if (isHistoryVisible) tactile.cobaltSoft else MaterialTheme.colorScheme.surfaceContainerLow,
-                            border = BorderStroke(
-                                1.dp,
-                                if (isHistoryVisible) tactile.cobaltFace.copy(alpha = 0.55f) else tactile.cardOutline,
-                            ),
+            if (returnLesson != null || !showHistoryToggle) {
+                Spacer(modifier = Modifier.weight(1f))
+            }
+
+            // Compact Corner Status Pill (Ready / Thinking / Offline) & Anchored Popover
+            Box {
+                Surface(
+                    onClick = {
+                        feedback.tap(view)
+                        isStatusPopoverOpen = !isStatusPopoverOpen
+                    },
+                    shape = KovaExpressiveShapes.Pill,
+                    color = if (isStatusPopoverOpen) tactile.cobaltSoft else tactile.cardFace,
+                    border = BorderStroke(
+                        1.dp,
+                        if (isStatusPopoverOpen) tactile.cobaltFace else tactile.cardOutline,
+                    ),
+                    modifier = Modifier
+                        .height(36.dp)
+                        .testTag("ai_corner_status_pill"),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    ) {
+                        Box(
                             modifier = Modifier
-                                .height(38.dp)
-                                .testTag("open_chat_history_button"),
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(5.dp),
-                            ) {
-                                Icon(
-                                    imageVector = if (isWideTabletLayout) Icons.Outlined.ViewSidebar else Icons.Outlined.History,
-                                    contentDescription = if (isHistoryVisible) "Hide chat history" else stringResource(R.string.cd_open_history),
-                                    tint = tactile.cobaltFace,
-                                    modifier = Modifier.size(16.dp),
-                                )
-                                Text(
-                                    text = if (isHistoryVisible) "Hide" else "History (${uiState.chatThreads.size})",
-                                    style = KovaCodeTextStyle.copy(fontWeight = FontWeight.Bold),
-                                    color = if (isHistoryVisible) tactile.onCobaltSoft else MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1,
-                                    softWrap = false,
-                                )
-                            }
-                        }
+                                .size(7.dp)
+                                .clip(CircleShape)
+                                .background(statusDotColor),
+                        )
+                        Text(
+                            text = uiState.aiTutorStatus.label,
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            color = if (isStatusPopoverOpen) tactile.onCobaltSoft else MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            softWrap = false,
+                        )
+                        Icon(
+                            imageVector = if (isStatusPopoverOpen) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                            contentDescription = stringResource(R.string.cd_toggle_ai_status),
+                            tint = if (isStatusPopoverOpen) tactile.cobaltFace else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(15.dp),
+                        )
                     }
                 }
 
-                HorizontalDivider(
-                    thickness = 1.dp,
-                    color = tactile.cardOutline.copy(alpha = 0.7f),
-                )
-
-                // Structured 3-Column Quota Telemetry Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                DropdownMenu(
+                    expanded = isStatusPopoverOpen,
+                    onDismissRequest = { isStatusPopoverOpen = false },
+                    containerColor = tactile.cardFace,
+                    shape = RoundedCornerShape(18.dp),
+                    border = BorderStroke(1.25.dp, tactile.cobaltFace.copy(alpha = 0.55f)),
+                    modifier = Modifier
+                        .widthIn(min = 248.dp, max = 286.dp)
+                        .testTag("ai_corner_status_popover"),
                 ) {
-                    AiQuotaMetricChip(
-                        label = "DIGEST",
-                        value = uiState.quota.morningDigestStatus,
-                        containerColor = tactile.emeraldSoft,
-                        contentColor = tactile.onEmeraldSoft,
-                        modifier = Modifier.weight(1f),
-                    )
-                    AiQuotaMetricChip(
-                        label = "ACTIVE POOL",
-                        value = "${uiState.quota.activeAiPoolRemaining}/${uiState.quota.activeAiPoolMax}",
-                        containerColor = tactile.cobaltSoft,
-                        contentColor = tactile.onCobaltSoft,
-                        modifier = Modifier.weight(1f),
-                    )
-                    AiQuotaMetricChip(
-                        label = "SR RESERVE",
-                        value = "${uiState.quota.spacedRepetitionReserve} saved",
-                        containerColor = tactile.amberSoft,
-                        contentColor = tactile.onAmberSoft,
-                        modifier = Modifier.weight(1f),
-                    )
+                    Column(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(9.dp),
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Lock,
+                                contentDescription = null,
+                                tint = tactile.cobaltFace,
+                                modifier = Modifier.size(15.dp),
+                            )
+                            Text(
+                                text = "TUTOR STATUS · ${uiState.aiTutorStatus.label.uppercase()}",
+                                style = KovaMonoBadgeTextStyle,
+                                color = tactile.cobaltFace,
+                            )
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = tactile.cobaltSoft,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                                verticalArrangement = Arrangement.spacedBy(2.dp),
+                            ) {
+                                Text(
+                                    text = "ACTIVE LESSON",
+                                    style = KovaMonoBadgeTextStyle,
+                                    color = tactile.onCobaltSoft.copy(alpha = 0.78f),
+                                )
+                                Text(
+                                    text = scopedLabel,
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = tactile.onCobaltSoft,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+
+                        HorizontalDivider(thickness = 1.dp, color = tactile.cardOutline.copy(alpha = 0.65f))
+
+                        AiStatusPopoverRow(
+                            label = "Digest",
+                            value = uiState.quota.morningDigestStatus,
+                            valueColor = tactile.emeraldFace,
+                        )
+                        AiStatusPopoverRow(
+                            label = "Active Pool",
+                            value = "${uiState.quota.activeAiPoolRemaining}/${uiState.quota.activeAiPoolMax} left",
+                            valueColor = tactile.cobaltFace,
+                        )
+                        AiStatusPopoverRow(
+                            label = "SR Reserve",
+                            value = "${uiState.quota.spacedRepetitionReserve} saved",
+                            valueColor = tactile.amberFace,
+                        )
+                    }
+                }
+            }
+
+            if (showHistoryToggle) {
+                Surface(
+                    onClick = {
+                        feedback.tap(view)
+                        onToggleHistory()
+                    },
+                    shape = KovaExpressiveShapes.Pill,
+                    color = if (isHistoryVisible) tactile.cobaltSoft else tactile.cardFace,
+                    border = BorderStroke(
+                        1.dp,
+                        if (isHistoryVisible) tactile.cobaltFace.copy(alpha = 0.55f) else tactile.cardOutline,
+                    ),
+                    modifier = Modifier
+                        .height(36.dp)
+                        .testTag("open_chat_history_button"),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Icon(
+                            imageVector = if (isWideTabletLayout) Icons.Outlined.ViewSidebar else Icons.Outlined.History,
+                            contentDescription = if (isHistoryVisible) "Hide chat history" else stringResource(R.string.cd_open_history),
+                            tint = tactile.cobaltFace,
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Text(
+                            text = if (isHistoryVisible) "Hide" else "${uiState.chatThreads.size}",
+                            style = KovaMonoBadgeTextStyle,
+                            color = if (isHistoryVisible) tactile.onCobaltSoft else MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            softWrap = false,
+                        )
+                    }
                 }
             }
         }
 
-        // Scrollable Message Stream
-        val activeLessonCode = activeThread?.lessonCode ?: uiState.activeLesson?.code ?: "1.1"
+        // Scrollable Message Stream with maximum vertical chat workspace
         LazyColumn(
             state = listState,
             modifier = Modifier
@@ -568,14 +673,6 @@ private fun AiChatMainPane(
             contentPadding = PaddingValues(vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            if (showWelcomeEmblem) {
-                item(key = "ai_welcome_emblem_card") {
-                    KovaAiWelcomeEmblemCard(
-                        scopedLabel = scopedLabel,
-                        modifier = Modifier.testTag("ai_welcome_emblem_card"),
-                    )
-                }
-            }
             items(items = messages, key = { it.id }) { msg ->
                 AiChatBubble(
                     message = msg,
@@ -689,37 +786,28 @@ private fun AiChatMainPane(
 }
 
 @Composable
-private fun AiQuotaMetricChip(
+private fun AiStatusPopoverRow(
     label: String,
     value: String,
-    containerColor: Color,
-    contentColor: Color,
-    modifier: Modifier = Modifier,
+    valueColor: Color,
 ) {
-    Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = containerColor,
-        modifier = modifier,
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
-            verticalArrangement = Arrangement.spacedBy(1.dp),
-        ) {
-            Text(
-                text = label,
-                style = KovaCodeTextStyle.copy(fontWeight = FontWeight.SemiBold),
-                color = contentColor.copy(alpha = 0.78f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = value,
-                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                color = contentColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = value,
+            style = KovaMonoBadgeTextStyle,
+            color = valueColor,
+            maxLines = 1,
+            softWrap = false,
+        )
     }
 }
 
@@ -845,44 +933,28 @@ private fun AiChatBubble(
                 }
             }
         } else if (message.isPhase3StatusNote) {
-            // Subtle, honest Phase 3 local-save status note beneath the user's bubble
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerLow,
-                border = BorderStroke(1.dp, tactile.cardOutline),
+            // Ultra-light inline local-save caption (no bulky status card crowding the chat)
+            Row(
                 modifier = Modifier
-                    .fillMaxWidth(0.92f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
                     .testTag("ai_phase3_status_${message.id}"),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(9.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.CheckCircle,
-                        contentDescription = null,
-                        tint = tactile.emeraldFace,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(2.dp),
-                    ) {
-                        Text(
-                            text = "SAVED LOCALLY · PHASE 3 READY",
-                            style = KovaCodeTextStyle.copy(fontWeight = FontWeight.Bold),
-                            color = tactile.emeraldFace,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            text = message.displayContent,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
+                Icon(
+                    imageVector = Icons.Outlined.CheckCircle,
+                    contentDescription = null,
+                    tint = tactile.emeraldFace,
+                    modifier = Modifier.size(13.dp),
+                )
+                Text(
+                    text = message.displayContent,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         } else {
             val segments = remember(message.id, message.content) {

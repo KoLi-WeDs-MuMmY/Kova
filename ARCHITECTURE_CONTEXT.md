@@ -1,6 +1,6 @@
 # Kova — Architecture Context & Guardrails
 
-Authoritative technical reference for the **Kova** Kotlin & Jetpack Compose Android application. Updated ahead of **Phase 2: Interactive Lesson Engine**.
+Authoritative technical reference for the **Kova** Kotlin & Jetpack Compose Android application. Updated through **Phase 2.1: Lesson Engine UX, IDE Workspace & Navigation Overhaul**.
 
 ---
 
@@ -27,15 +27,17 @@ Base Android namespace: `com.example` (do **not** rename `com/example/` director
 
 - **Root Shell (`com.example.ui`)**
   - `KovaApp(viewModel)` — wires `collectAsStateWithLifecycle()`, `KovaFeedbackController`, `KovaTheme`, `FloatingCompanionHost`, `DeveloperSettingsSheet`, and snackbars.
-  - `KovaShellContent(...)` — manages `SharedTransitionLayout`, `AnimatedContent` detail transforms, adaptive `KovaNavigationRail` (`>= 600.dp`) vs. `KovaTactileBottomNavBar`, focus-mode chrome fade (`isGlobalChromeHidden`), slide-over `ChapterScopedAiSheet`, and blurred `FlashcardFocusStageOverlay`.
+  - `KovaShellContent(...)` — manages `SharedTransitionLayout`, `AnimatedContent` detail transforms, adaptive `KovaNavigationRail` (`>= 600.dp`) vs. `KovaTactileBottomNavBar`, focus-mode chrome fade (`isGlobalChromeHidden`), slide-over `ChapterScopedAiSheet`, blurred `FlashcardFocusStageOverlay`, and **Smart System Back-Navigation** (Lesson -> AI -> Back returns to exact lesson preserving split ratio & debugger state; Lab/direct-AI/Revision -> Back returns to `Learn` Overview; `Learn` Overview -> Double-Back within 2s exits).
 - **Primary Tabs (`com.example.ui.screens`)**
   - `LearnScreen(...)` — Chapter Overview with 3D circular progress rings -> Chapter Focus Mode (hides global chrome, clickable top chapter header bar, floating corner AI circle shortcut, 3D winding quest pedestals, directional glowing connectors, 3D golden assignment trophy). Also exports `ChapterAssignmentPathCard(...)`.
   - `LabScreen(...)` — Synchronized Chapter Assignments Hub + Phase 3 Virtual Folder/File Prompt Builder preview.
-  - `AiScreen(...)` — Scoped Lesson Tutor with collapsible Chat History (`Hide/Unhide`), `KovaAiEmblem`, 3-pill Quota Strip, editable Quick Prompts, immediate user bubble + Phase 3 local status note, and 1-tap `Save to Notes`. Also exports `ChapterScopedAiSheet(...)`.
+  - `AiScreen(...)` — Spacious Scoped Lesson Tutor with slim header (`KovaAiEmblem`, optional `"← L1.x"` lesson return pill, History toggle, and expandable top-right corner status pill/popover showing `Active Lesson`, `Digest`, `Active Pool`, `SR Reserve`), collapsible Chat History (`Hide/Unhide`), editable Quick Prompts, immediate user bubble + slim Phase 3 status caption, and 1-tap `Save to Notes`. Also exports `ChapterScopedAiSheet(...)`.
   - `RevisionScreen(...)` — Compact Mastery & Quota Header, active Chapter Revision Sheet shortcut, 3-way segmented binder (`Notes` | `Flashcards` | `SR`), Concept Mastery & Mistake Radar (`Focus Next`), searchable/filterable Highlights, and Due Now vs. Upcoming SR queue. Exports `HighlightCategory.accentColor()` and `HighlightCategory.displayLabel()`.
 - **Focus Workspaces & Overlays (`com.example.ui.screens`)**
   - `DetailSheetHost(...)` — `BackHandler`-guarded host for `DetailDestination.LessonDetail`, `AssignmentDetail`, `NoteDetail`, and `RevisionSheetDetail`.
-  - `LessonFocusWorkspace(...)` — Distraction-free Lesson Focus Canvas with orientation-aware tactile progress bar (top horizontal bar in portrait, left vertical rail in landscape) and spring-animated `75:25 -> 50:50 -> 25:75` split panes (Lesson Pane + Code/IDE Debugger Pane).
+  - `LessonFocusWorkspace(...)` — Distraction-free Lesson Focus Canvas with orientation-aware tactile progress bar (top horizontal bar in portrait, left vertical rail in landscape), AI Tutor shortcut (`lesson_open_ai_button`), spring-animated `75:25 -> 50:50 -> 25:75` split panes, and full-screen closed-book `LessonTestOverlay`.
+  - `LessonReaderPane(...)` — Airy card-spaced Lesson Reader with Plain-English Word Breakdowns, built-in `PreHighlightedTakeaway` highlights, Core Concept Rules with plain human math phrasing and tactile **"Explain →"** Focus Mode (`ConversationalExplainFocusView` with `BackHandler`: everyday analogy -> Kotlin connection -> syntax -> symbol breakdown), Dedicated Desired Output + collapsed-by-default **"Show Solution & Line Notes"**, interactive tap-to-highlight (`Key Idea`, `Code Rule`, `Gotcha` + `Send to AI`), and 5-question test launcher.
+  - `LessonDebuggerPane(...)` — Real Kotlin IDE Workspace (`Main.kt` tab, line-number gutter, syntax-tinted editable practice editor, `Run / Check` evaluator + live console) defaulting to Code & Practice Mode, with a prominent **"Unlock Debugger"** toggle (`isDebuggerUnlocked`) that plays `chapterSwoosh`, auto-expands `75:25 -> 50:50`, and reveals Step Back / Step Forward / Play / Reset + animated line traces + live Variable & State Watch drawer.
   - `FlashcardDeckPreviewCard(...)` & `FlashcardFocusStageOverlay(...)` — Blurred-backdrop (`Modifier.blur(18.dp)` on Android 12+) 60-second 3D flip flashcard sprint.
 - **Shared Components (`com.example.ui.components`)**
   - `KovaTactileCard`, `KovaTactileButton`, `KovaTactileNodeCap`, `Kova3DQuestPedestal`, `Kova3DGoldenTrophyPedestal`, `Kova3DCircularChapterRing`, `KovaPillBadge`, `KovaScallopedSealBadge`, `Modifier.shakeOnTrigger`, `Modifier.settleOrCelebrateOnReturn`.
@@ -48,12 +50,15 @@ Base Android namespace: `com.example` (do **not** rename `com/example/` director
 - **Class**: `com.example.viewmodel.KovaViewModel` (instantiated via `KovaViewModelFactory(context)`).
 - **Primary StateFlow**:
   - `val uiState: StateFlow<KovaUiState>` (backed by private `_uiState: MutableStateFlow<KovaUiState>`).
-- **Key Derived Properties on `KovaUiState`**:
-  - `isLessonFocusMode`, `isChapterFocusMode`, `isGlobalChromeHidden`, `focusedChapter`, `activeLesson`, `activeThread`, `filteredChatThreads`, `filteredHighlights`, `dueNowSrItems`, `upcomingSrItems`, `flashcardDeck`, `masteryRadar`.
+- **Key State Flags & Derived Properties on `KovaUiState`**:
+  - Navigation & Focus: `isLessonFocusMode`, `isChapterFocusMode`, `isGlobalChromeHidden`, `focusedChapter`, `activeLesson`, `returnToLessonIdAfterAi`, `returnToChapterIdAfterAi`.
+  - IDE & Lesson Engine: `lessonSplitRatio`, `unlockedDebuggerLessonIds`, `isDebuggerUnlocked`, `isDebuggerUnlockedFor(lessonId)`.
+  - Models (`KovaModels.kt`): `ExplainDeepDive`, `SymbolBreakdown`, `PreHighlightedTakeaway`, `ConceptRule` (with `explainDeepDive`), `PracticeTaskSpec` (with `starterCode`, `expectedKeywords`, `editorHint`, `desiredOutput`, `solutionCode`, `lineNotes`), `DebuggerWalkthrough`, `LessonTestQuestion`.
+  - Study Data: `activeThread`, `filteredChatThreads`, `filteredHighlights`, `dueNowSrItems`, `upcomingSrItems`, `flashcardDeck`, `masteryRadar`.
   - Lookups: `findLesson(lessonId)`, `findAssignment(assignmentId)`, `findChapter(chapterId)`, `findNote(noteId)`.
 - **Core ViewModel Actions**:
-  - Navigation & Focus: `selectTab`, `toggleChapterExpanded`, `openChapterFocus`, `closeChapterFocus`, `setChapterAiSheetOpen`, `switchFromChapterFocusToAiTab`, `toggleAiHistoryVisibility`, `setAiHistoryVisibility`, `openLesson`, `openAssignment`, `openNote`, `openRevisionSheet`, `closeDetail`, `cycleLessonSplitRatio`, `setLessonSplitRatio`.
-  - Mastery & Progression: `checkDailyRollover`, `passLessonMockTest` (preserved for backwards compatibility; delegates/aligns with real `submitLessonTestPass`), `completeAssignment`.
+  - Navigation & Focus: `selectTab`, `navigateBackToLearnHome`, `openAiFromLesson`, `returnFromAiToLesson`, `showExitPromptSnackbar`, `toggleChapterExpanded`, `openChapterFocus`, `closeChapterFocus`, `setChapterAiSheetOpen`, `switchFromChapterFocusToAiTab`, `toggleAiHistoryVisibility`, `setAiHistoryVisibility`, `openLesson`, `openAssignment`, `openNote`, `openRevisionSheet`, `closeDetail`, `cycleLessonSplitRatio`, `setLessonSplitRatio`, `unlockLessonDebugger`, `setLessonDebuggerUnlocked`.
+  - Mastery & Progression: `checkDailyRollover`, `submitLessonTestPass`, `passLessonMockTest` (delegates to real `submitLessonTestPass`), `completeAssignment`.
   - AI & Revision Sync: `selectChatThread`, `createNewLessonThread`, `updateChatSearchQuery`, `togglePinThread`, `deleteChatThread`, `updateChatComposerText`, `insertQuickPrompt`, `sendChatMessage`, `saveAiMessageToNotes`, `saveLessonHighlight`, `askAiAboutLessonHighlight`.
   - Revision & Flashcards: `selectBinderTab`, `updateRevisionSearchQuery`, `selectHighlightFilter`, `focusNextFromRadar`, `startQuickReviewFromQueue`, `openFlashcardFocusStage`, `closeFlashcardFocusStage`, `startOrResumeFlashcardSprint`, `togglePauseFlashcardSprint`, `restartFlashcardSprint`, `flipFlashcard`, `rateFlashcardGotIt`, `rateFlashcardReviewAgain`.
   - Settings & Dev Controls: `toggleFloatingPreview`, `setFloatingPreview`, `setThemeMode`, `setDynamicColorEnabled`, `setExpressiveMotionEnabled`, `setSoundAndHapticsEnabled`, `setDevUnlockAllOverride`, `resetDemoProgress`, `setSettingsOpen`, `triggerLockedNodeFeedback`, `consumeSnackbar`.
@@ -101,8 +106,10 @@ Base Android namespace: `com.example` (do **not** rename `com/example/` director
   - `LocalKovaTactileColors: KovaTactileColors` — `cardFace`, `cardElevatedFace`, `cardOutline`, `cardLip`, `cardBorderWidthDp`, `emeraldFace/Lip/Soft/onEmeraldFace/onEmeraldSoft`, `cobaltFace/Lip/Soft/onCobaltFace/onCobaltSoft`, `amberFace/Lip/Soft/onAmberFace/onAmberSoft`, `coralFace/Lip/Soft/onCoralFace/onCoralSoft`, `stoneFace/Lip/stoneLabel`, `ringTrack`, `ringTrackBevel`, `pathInactive`, `keyIdea`, `codeRule`, `gotcha`, `isDarkSurface`, `isAmoled`.
   - `LocalKovaMotion: KovaMotionConfig` — `enabled`, `containerBoundsSpec`, `expressiveSpring()` (`spring(dampingRatio = 0.76f, stiffness = 340f)` or `snap()`).
   - `LocalTonalElevationEnabled` is explicitly forced to `false` (`surfaceTint = Color.Transparent`) so True AMOLED remains pure `#000000`.
-- **Typography (`Type.kt`)**:
-  - `SpaceGroteskFontFamily` (Display & Headlines), `PlusJakartaSansFontFamily` (Body & Labels), `JetBrainsMonoFontFamily` + `KovaCodeTextStyle` (code snippets, debugger lines, badges, metrics).
+- **Typography (`Type.kt` — Strict 3-Font Discipline)**:
+  - `SpaceGroteskFontFamily` — Headlines, display titles, and card/section titles (`display*`, `headline*`, `titleLarge`).
+  - `PlusJakartaSansFontFamily` — Body copy, conversational Explain prose, and UI/button/nav labels (`titleMedium`, `titleSmall`, `body*`, `labelLarge`, `labelMedium`, `labelSmall`).
+  - `JetBrainsMonoFontFamily` — Strictly code snippets, IDE lines/gutter, console outputs, and compact code/numeric badges (`KovaCodeTextStyle`, `KovaMonoBadgeTextStyle`).
 - **Expressive Shapes (`KovaExpressiveShapes`)**:
   - `HeroChapterCard` (`28.dp`), `StatAndAssignmentCard` (`20.dp`), `LessonSquircleNode` (`26.dp`), `FloatingCompanionWindow` (`28.dp`), `Pill` (`CircleShape`), `AsymmetricPreviewCard`, `ScallopedSeal`, `SoftCloverBadge`.
 
@@ -116,4 +123,12 @@ Base Android namespace: `com.example` (do **not** rename `com/example/` director
 4. **Crash-Safe Disk Persistence & Room Integrity**: Every study progression, highlight note, chat message, SR update, split ratio, and setting persists to disk (`FileKovaAppStateStore` + `KovaDatabase`). Never use `OnConflictStrategy.REPLACE` on `ChatThreadEntity` (`@Upsert` + optimistic pending buffer prevents vanishing AI messages). `resetDemoProgress()` resets study data while preserving Theme Mode, Dynamic Color, Motion, and Sound & Haptics preferences.
 5. **Instant-Restart Zero-Overlap Audio & Haptics**: Always trigger audio/haptics through `LocalKovaFeedback.current` so rapid clicks preempt cleanly on `USAGE_MEDIA` and respect the Settings toggle.
 6. **Three Grounded Themes (Zero Neon / Pure AMOLED)**: Never hardcode hex colors in feature composables—always use `MaterialTheme.colorScheme` and `LocalKovaTactileColors`. Keep `WARM_DAYLIGHT` (`#FBF8F3`), `WARM_DARK` (`#141210`), and `AMOLED_BLACK` (`#000000` with `LocalTonalElevationEnabled = false`) crisp and legible.
-7. **Phase 1 UX Preservation**: Keep 3D circular chapter rings, Chapter Focus Mode + corner AI circle shortcut, blurred-backdrop 3D Flashcard Focus Stage, persistent AI chat threads with Hide/Unhide history, `75:25 -> 50:50 -> 25:75` split-pane cycling, portrait/landscape progress bars, and `BackHandler` support intact.
+7. **Phase 1 & Phase 2.1 UX Preservation**: Keep 3D circular chapter rings, Chapter Focus Mode + corner AI circle shortcut, blurred-backdrop 3D Flashcard Focus Stage, persistent AI chat threads with Hide/Unhide history + corner status popover, `75:25 -> 50:50 -> 25:75` split-pane cycling, portrait/landscape progress bars, Lesson 1.1 free of `+=` (introduced cleanly in Lesson 1.3), Code & Practice IDE default with `"Unlock Debugger"` gate, `"Explain →"` conversational focus mode, and Smart System Back-Navigation intact.
+
+---
+
+## 8. Phase Delivery Log
+
+- **Phase 1**: Tactile 3D Expressive Shell, Chapter Focus Mode, Dual Persistence (Room + Atomic JSON), Instant-Restart PCM Audio + Haptics, 3 Grounded Themes (`WARM_DAYLIGHT`, `WARM_DARK`, `AMOLED_BLACK`).
+- **Phase 2**: Interactive Lesson Engine (Word Breakdowns, Concept Rules, Tap-to-Highlight + Revision Sync + Send to AI, Step-by-Step Debugger, 5-Question Closed-Book Test with 80% Mastery Gate).
+- **Phase 2.1**: Spacious AI Screen with Corner Status Popover, Plain Human Math Language + `"Explain →"` Conversational Focus Mode, Desired Output + Collapsed Show Solution, Real Kotlin IDE Workspace with `"Unlock Debugger"` Gate, Clean Chapter 1 Pacing (zero `+=` in Lesson 1.1; `+=` & `!=` in Lesson 1.3), Strict 3-Font Typography Discipline, and Smart System Back-Navigation (Lesson -> AI -> Back -> Lesson, Tab -> Home, Home Double-Back to Exit).

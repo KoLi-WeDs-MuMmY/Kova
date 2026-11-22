@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.VerticalSplit
 import androidx.compose.material.icons.outlined.ViewAgenda
@@ -56,8 +57,8 @@ import com.example.model.Lesson
 import com.example.model.LessonSplitRatio
 import com.example.model.LessonStatus
 import com.example.ui.feedback.LocalKovaFeedback
-import com.example.ui.theme.KovaCodeTextStyle
 import com.example.ui.theme.KovaExpressiveShapes
+import com.example.ui.theme.KovaMonoBadgeTextStyle
 import com.example.ui.theme.LocalKovaMotion
 import com.example.ui.theme.LocalKovaTactileColors
 
@@ -79,6 +80,13 @@ fun LessonFocusWorkspace(
     chapterProgress: Float,
     dailyRemaining: Int,
     splitRatio: LessonSplitRatio,
+    isDebuggerUnlocked: Boolean,
+    savedScrollPosition: Int = 0,
+    activeExplainRuleId: String? = null,
+    onScrollPositionChanged: (Int) -> Unit = {},
+    onActiveExplainRuleChanged: (String?) -> Unit = {},
+    onUnlockDebugger: () -> Unit,
+    onOpenAiFromLesson: () -> Unit,
     onCycleSplitRatio: () -> Unit,
     onSetSplitRatio: (LessonSplitRatio) -> Unit,
     onSaveHighlight: (blockId: String, snippet: String, category: HighlightCategory, learnerNote: String) -> Unit,
@@ -152,6 +160,10 @@ fun LessonFocusWorkspace(
                         progress = animatedProgress,
                         isCompleted = isCompleted,
                         splitRatio = splitRatio,
+                        onOpenAiFromLesson = {
+                            feedback.tap(view)
+                            onOpenAiFromLesson()
+                        },
                         onCycleSplitRatio = {
                             feedback.splitTick(view)
                             onCycleSplitRatio()
@@ -173,6 +185,10 @@ fun LessonFocusWorkspace(
                             content = interactiveContent,
                             savedHighlights = savedHighlights,
                             dailyRemaining = dailyRemaining,
+                            savedScrollPosition = savedScrollPosition,
+                            activeExplainRuleId = activeExplainRuleId,
+                            onScrollPositionChanged = onScrollPositionChanged,
+                            onActiveExplainRuleChanged = onActiveExplainRuleChanged,
                             onSaveHighlight = onSaveHighlight,
                             onAskAiHighlight = onAskAiHighlight,
                             onStartIntegratedTest = { isTestOverlayOpen = true },
@@ -182,8 +198,11 @@ fun LessonFocusWorkspace(
                         )
                         LessonDebuggerPane(
                             lessonId = lesson.id,
+                            practiceTask = interactiveContent.practiceTask,
                             walkthrough = interactiveContent.debugger,
                             splitRatio = splitRatio,
+                            isDebuggerUnlocked = isDebuggerUnlocked,
+                            onUnlockDebugger = onUnlockDebugger,
                             onAutoExpandToHalf = { onSetSplitRatio(LessonSplitRatio.RATIO_50_50) },
                             modifier = Modifier
                                 .weight(animatedIdeWeight)
@@ -203,6 +222,10 @@ fun LessonFocusWorkspace(
                         progress = animatedProgress,
                         isCompleted = isCompleted,
                         splitRatio = splitRatio,
+                        onOpenAiFromLesson = {
+                            feedback.tap(view)
+                            onOpenAiFromLesson()
+                        },
                         onCycleSplitRatio = {
                             feedback.splitTick(view)
                             onCycleSplitRatio()
@@ -224,6 +247,10 @@ fun LessonFocusWorkspace(
                             content = interactiveContent,
                             savedHighlights = savedHighlights,
                             dailyRemaining = dailyRemaining,
+                            savedScrollPosition = savedScrollPosition,
+                            activeExplainRuleId = activeExplainRuleId,
+                            onScrollPositionChanged = onScrollPositionChanged,
+                            onActiveExplainRuleChanged = onActiveExplainRuleChanged,
                             onSaveHighlight = onSaveHighlight,
                             onAskAiHighlight = onAskAiHighlight,
                             onStartIntegratedTest = { isTestOverlayOpen = true },
@@ -233,8 +260,11 @@ fun LessonFocusWorkspace(
                         )
                         LessonDebuggerPane(
                             lessonId = lesson.id,
+                            practiceTask = interactiveContent.practiceTask,
                             walkthrough = interactiveContent.debugger,
                             splitRatio = splitRatio,
+                            isDebuggerUnlocked = isDebuggerUnlocked,
+                            onUnlockDebugger = onUnlockDebugger,
                             onAutoExpandToHalf = { onSetSplitRatio(LessonSplitRatio.RATIO_50_50) },
                             modifier = Modifier
                                 .weight(animatedIdeWeight)
@@ -279,6 +309,7 @@ private fun PortraitTopProgressBar(
     progress: Float,
     isCompleted: Boolean,
     splitRatio: LessonSplitRatio,
+    onOpenAiFromLesson: () -> Unit,
     onCycleSplitRatio: () -> Unit,
     onClose: () -> Unit,
 ) {
@@ -338,6 +369,27 @@ private fun PortraitTopProgressBar(
             }
         }
 
+        // Compact AI Tutor shortcut (supports Lesson -> AI -> System Back -> Lesson)
+        Surface(
+            shape = CircleShape,
+            color = tactile.cobaltSoft,
+            border = BorderStroke(tactile.cardBorderWidthDp.dp, tactile.cobaltFace.copy(alpha = 0.55f)),
+        ) {
+            IconButton(
+                onClick = onOpenAiFromLesson,
+                modifier = Modifier
+                    .size(44.dp)
+                    .testTag("lesson_open_ai_button"),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.AutoAwesome,
+                    contentDescription = stringResource(R.string.nav_ai),
+                    tint = tactile.cobaltFace,
+                    modifier = Modifier.size(19.dp),
+                )
+            }
+        }
+
         // Split Ratio Toggle Pill (75:25 -> 50:50 -> 25:75)
         Surface(
             onClick = onCycleSplitRatio,
@@ -361,7 +413,7 @@ private fun PortraitTopProgressBar(
                 )
                 Text(
                     text = splitRatio.badgeLabel,
-                    style = KovaCodeTextStyle.copy(fontWeight = FontWeight.Bold),
+                    style = KovaMonoBadgeTextStyle,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     softWrap = false,
@@ -376,6 +428,7 @@ private fun LandscapeLeftProgressRail(
     progress: Float,
     isCompleted: Boolean,
     splitRatio: LessonSplitRatio,
+    onOpenAiFromLesson: () -> Unit,
     onCycleSplitRatio: () -> Unit,
     onClose: () -> Unit,
 ) {
@@ -439,6 +492,26 @@ private fun LandscapeLeftProgressRail(
         }
 
         Surface(
+            shape = CircleShape,
+            color = tactile.cobaltSoft,
+            border = BorderStroke(tactile.cardBorderWidthDp.dp, tactile.cobaltFace.copy(alpha = 0.55f)),
+        ) {
+            IconButton(
+                onClick = onOpenAiFromLesson,
+                modifier = Modifier
+                    .size(44.dp)
+                    .testTag("lesson_open_ai_button"),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.AutoAwesome,
+                    contentDescription = stringResource(R.string.nav_ai),
+                    tint = tactile.cobaltFace,
+                    modifier = Modifier.size(19.dp),
+                )
+            }
+        }
+
+        Surface(
             onClick = onCycleSplitRatio,
             shape = RoundedCornerShape(16.dp),
             color = tactile.cardFace,
@@ -460,7 +533,7 @@ private fun LandscapeLeftProgressRail(
                 )
                 Text(
                     text = splitRatio.badgeLabel,
-                    style = KovaCodeTextStyle.copy(fontWeight = FontWeight.Bold),
+                    style = KovaMonoBadgeTextStyle,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                 )

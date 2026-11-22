@@ -1,6 +1,8 @@
 package com.example
 
 import com.example.data.local.FileKovaAppStateStore
+import com.example.model.AiTutorStatus
+import com.example.model.DetailDestination
 import com.example.model.HighlightCategory
 import com.example.model.KovaTab
 import com.example.model.LessonSplitRatio
@@ -520,5 +522,199 @@ class KovaViewModelTest {
 
         vm.setLessonSplitRatio(LessonSplitRatio.RATIO_50_50)
         assertEquals(LessonSplitRatio.RATIO_50_50, vm.uiState.value.lessonSplitRatio)
+    }
+
+    @Test
+    fun lesson11HasZeroCompoundPlusEqualsAndLesson13TeachesPlusEqualsAndNotEquals() {
+        val vm = KovaViewModel()
+        val lesson11 = vm.uiState.value.findLesson("l_1_1")!!
+        val content11 = lesson11.interactiveContent!!
+
+        val allText11 = buildString {
+            appendLine(lesson11.codePreview)
+            content11.preHighlightedTakeaways.forEach { appendLine(it.headline); appendLine(it.body) }
+            content11.wordBreakdowns.forEach {
+                appendLine(it.term); appendLine(it.literalMeaning); appendLine(it.tenYearOldAnalogy)
+            }
+            content11.conceptRules.forEach { rule ->
+                appendLine(rule.title)
+                appendLine(rule.explanation)
+                appendLine(rule.codeSnippet)
+                appendLine(rule.whyItMatters)
+                val dive = rule.explainDeepDive
+                appendLine(dive.realLifeOpening)
+                appendLine(dive.kotlinConnection)
+                appendLine(dive.syntaxSnippet)
+                dive.symbolBreakdowns.forEach { appendLine(it.symbol); appendLine(it.plainWords) }
+            }
+            appendLine(content11.practiceTask.prompt)
+            appendLine(content11.practiceTask.starterCode)
+            appendLine(content11.practiceTask.desiredOutput)
+            appendLine(content11.practiceTask.solutionCode)
+            content11.practiceTask.lineNotes.forEach { appendLine(it.note) }
+            content11.debugger.lines.forEach { appendLine(it.code) }
+            content11.debugger.steps.forEach { appendLine(it.explanation) }
+            content11.testQuestions.forEach { q ->
+                appendLine(q.prompt)
+                q.codeSnippet?.let { appendLine(it) }
+                q.options.forEach { appendLine(it) }
+                appendLine(q.plainEnglishExplanation)
+            }
+        }
+        assertFalse("Lesson 1.1 must not contain '+=' anywhere", allText11.contains("+="))
+
+        val lesson13 = vm.uiState.value.findLesson("l_1_3")!!
+        val content13 = lesson13.interactiveContent!!
+        val allText13 = buildString {
+            appendLine(lesson13.codePreview)
+            content13.conceptRules.forEach { appendLine(it.codeSnippet); appendLine(it.explanation) }
+            appendLine(content13.practiceTask.solutionCode)
+        }
+        assertTrue("Lesson 1.3 should teach '+='", allText13.contains("+="))
+        assertTrue("Lesson 1.3 should teach '!='", allText13.contains("!="))
+    }
+
+    @Test
+    fun allChapter1LessonsIncludeExplainDeepDivesPreHighlightsAndIdeStarterCode() {
+        val vm = KovaViewModel()
+        val ch1 = vm.uiState.value.findChapter("ch_1")!!
+
+        ch1.lessons.forEach { lesson ->
+            val content = lesson.interactiveContent!!
+            assertTrue(
+                "${lesson.code} needs pre-highlighted takeaways",
+                content.preHighlightedTakeaways.size >= 2,
+            )
+            assertTrue(
+                "${lesson.code} needs starterCode for IDE workspace",
+                content.practiceTask.starterCode.isNotBlank(),
+            )
+            content.conceptRules.forEach { rule ->
+                val dive = rule.explainDeepDive
+                assertTrue(dive.realLifeOpening.isNotBlank())
+                assertTrue(dive.kotlinConnection.isNotBlank())
+                assertTrue(dive.syntaxSnippet.isNotBlank())
+                assertTrue(dive.symbolBreakdowns.isNotEmpty())
+            }
+        }
+    }
+
+    @Test
+    fun debuggerDefaultsLockedAndUnlocksPerLesson() {
+        val vm = KovaViewModel()
+        assertFalse(vm.uiState.value.isDebuggerUnlockedFor("l_1_1"))
+        assertFalse(vm.uiState.value.isDebuggerUnlocked)
+
+        vm.openLesson("l_1_1")
+        assertFalse(vm.uiState.value.isDebuggerUnlocked)
+
+        vm.unlockLessonDebugger("l_1_1")
+        assertTrue(vm.uiState.value.isDebuggerUnlockedFor("l_1_1"))
+        assertTrue(vm.uiState.value.isDebuggerUnlocked)
+        assertFalse(vm.uiState.value.isDebuggerUnlockedFor("l_1_2"))
+    }
+
+    @Test
+    fun smartBackNavigationReturnsLessonToAiBackToExactLessonAndOtherTabsToLearnHome() {
+        val vm = KovaViewModel()
+        vm.openChapterFocus("ch_1")
+        vm.openLesson("l_1_1")
+        vm.setLessonSplitRatio(LessonSplitRatio.RATIO_50_50)
+        vm.unlockLessonDebugger("l_1_1")
+
+        // Jump from Lesson 1.1 to full-screen AI
+        vm.openAiFromLesson("l_1_1")
+        assertEquals(KovaTab.AI, vm.uiState.value.selectedTab)
+        assertEquals(null, vm.uiState.value.activeDetail)
+        assertEquals("l_1_1", vm.uiState.value.returnToLessonIdAfterAi)
+
+        // System Back returns directly to Lesson 1.1 preserving split ratio and debugger state
+        val returned = vm.returnFromAiToLesson()
+        assertTrue(returned)
+        assertEquals(DetailDestination.LessonDetail("l_1_1"), vm.uiState.value.activeDetail)
+        assertEquals(KovaTab.LEARN, vm.uiState.value.selectedTab)
+        assertEquals(LessonSplitRatio.RATIO_50_50, vm.uiState.value.lessonSplitRatio)
+        assertTrue(vm.uiState.value.isDebuggerUnlockedFor("l_1_1"))
+        assertEquals(null, vm.uiState.value.returnToLessonIdAfterAi)
+
+        // Gotcha -> Send to AI also records returnToLessonIdAfterAi
+        vm.askAiAboutLessonHighlight(
+            lessonId = "l_1_1",
+            blockId = "rule_val_first",
+            snippet = "val cannot be reassigned",
+            learnerNote = "Quick check",
+        )
+        assertEquals(KovaTab.AI, vm.uiState.value.selectedTab)
+        assertEquals("l_1_1", vm.uiState.value.returnToLessonIdAfterAi)
+        assertTrue(vm.returnFromAiToLesson())
+        assertEquals(DetailDestination.LessonDetail("l_1_1"), vm.uiState.value.activeDetail)
+
+        // Opening Lab or Revision directly -> Back navigates to Learn Overview home
+        vm.closeDetail()
+        vm.selectTab(KovaTab.LAB)
+        assertEquals(null, vm.uiState.value.returnToLessonIdAfterAi)
+        vm.navigateBackToLearnHome()
+        assertEquals(KovaTab.LEARN, vm.uiState.value.selectedTab)
+        assertEquals(null, vm.uiState.value.focusedChapterId)
+
+        vm.selectTab(KovaTab.REVISION)
+        vm.navigateBackToLearnHome()
+        assertEquals(KovaTab.LEARN, vm.uiState.value.selectedTab)
+    }
+
+    @Test
+    fun debuggerUnlockExactScrollPositionAndExplainStatePersistAcrossAiDetourAndRestart() {
+        val tempFile = File.createTempFile("kova_phase21_persist_", ".json")
+        try {
+            val fixedDate = "2026-11-22"
+            val vm1 = KovaViewModel(
+                appStateStore = FileKovaAppStateStore(tempFile),
+                dateProvider = { fixedDate },
+            )
+
+            vm1.openChapterFocus("ch_1")
+            vm1.openLesson("l_1_1")
+            vm1.unlockLessonDebugger("l_1_1")
+            vm1.updateLessonScrollPosition("l_1_1", 640)
+            vm1.setLessonExplainRule("l_1_1", "rule_val_first")
+
+            // Jump to AI and return -> exact lesson, scroll offset, explain rule, and debugger unlock preserved
+            vm1.openAiFromLesson("l_1_1")
+            assertEquals(KovaTab.AI, vm1.uiState.value.selectedTab)
+            assertTrue(vm1.returnFromAiToLesson())
+            assertEquals(DetailDestination.LessonDetail("l_1_1"), vm1.uiState.value.activeDetail)
+            assertEquals(640, vm1.uiState.value.scrollPositionFor("l_1_1"))
+            assertEquals("rule_val_first", vm1.uiState.value.activeExplainRuleFor("l_1_1"))
+            assertTrue(vm1.uiState.value.isDebuggerUnlockedFor("l_1_1"))
+
+            // Cold app restart -> all Phase 2.1 state persists cleanly from disk
+            val vm2 = KovaViewModel(
+                appStateStore = FileKovaAppStateStore(tempFile),
+                dateProvider = { fixedDate },
+            )
+            val restored = vm2.uiState.value
+            assertTrue(restored.isDebuggerUnlockedFor("l_1_1"))
+            assertEquals(640, restored.scrollPositionFor("l_1_1"))
+            assertEquals("rule_val_first", restored.activeExplainRuleFor("l_1_1"))
+            assertEquals("l_1_1", restored.lastActiveLessonId)
+        } finally {
+            tempFile.delete()
+        }
+    }
+
+    @Test
+    fun aiTutorStatusSupportsReadyThinkingAndOfflineStates() {
+        val vm = KovaViewModel()
+        assertEquals(AiTutorStatus.READY, vm.uiState.value.aiTutorStatus)
+
+        vm.setAiTutorStatus(AiTutorStatus.OFFLINE)
+        assertEquals(AiTutorStatus.OFFLINE, vm.uiState.value.aiTutorStatus)
+
+        vm.updateChatComposerText("Offline check")
+        vm.sendChatMessage()
+        assertEquals(AiTutorStatus.OFFLINE, vm.uiState.value.aiTutorStatus)
+
+        vm.setAiTutorStatus(AiTutorStatus.READY)
+        assertEquals(AiTutorStatus.READY, vm.uiState.value.aiTutorStatus)
     }
 }

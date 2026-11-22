@@ -44,6 +44,13 @@ val KovaTypography = Typography(
         lineHeight = 36.sp,
         letterSpacing = (-0.5).sp,
     ),
+    displaySmall = TextStyle(
+        fontFamily = SpaceGroteskFontFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 26.sp,
+        lineHeight = 32.sp,
+        letterSpacing = (-0.4).sp,
+    ),
     headlineLarge = TextStyle(
         fontFamily = SpaceGroteskFontFamily,
         fontWeight = FontWeight.Bold,
@@ -122,11 +129,11 @@ val KovaTypography = Typography(
         letterSpacing = 0.35.sp,
     ),
     labelSmall = TextStyle(
-        fontFamily = JetBrainsMonoFontFamily,
-        fontWeight = FontWeight.Medium,
-        fontSize = 10.5.sp,
-        lineHeight = 14.sp,
-        letterSpacing = 0.4.sp,
+        fontFamily = PlusJakartaSansFontFamily,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 11.sp,
+        lineHeight = 15.sp,
+        letterSpacing = 0.25.sp,
     ),
 )
 
@@ -136,4 +143,12 @@ val KovaCodeTextStyle = TextStyle(
     fontSize = 12.sp,
     lineHeight = 17.sp,
     letterSpacing = 0.2.sp,
+)
+
+val KovaMonoBadgeTextStyle = TextStyle(
+    fontFamily = JetBrainsMonoFontFamily,
+    fontWeight = FontWeight.Bold,
+    fontSize = 10.5.sp,
+    lineHeight = 14.sp,
+    letterSpacing = 0.35.sp,
 )
