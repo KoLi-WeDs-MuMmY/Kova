@@ -161,3 +161,64 @@ fun KovaAiWelcomeEmblemCard(
         }
     }
 }
+
+/**
+ * Clean, distraction-free centered AI emblem centerpiece shown when a chat thread is empty
+ * or starting fresh. Avoids heavy box clutter and offers an optional quick return pill when
+ * entered from inside a specific lesson.
+ */
+@Composable
+fun KovaAiCenteredEmptyState(
+    isLessonScoped: Boolean,
+    scopedLessonLabel: String?,
+    returnLessonCode: String?,
+    onReturnToLesson: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val tactile = LocalKovaTactileColors.current
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        KovaAiEmblem(size = 64.dp, lipHeight = 5.dp)
+
+        Text(
+            text = if (isLessonScoped) "Kova Lesson Tutor" else "Ask Kova AI",
+            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.onBackground,
+            textAlign = TextAlign.Center,
+        )
+
+        Text(
+            text = if (isLessonScoped && !scopedLessonLabel.isNullOrBlank()) {
+                "Focused on $scopedLessonLabel. Ask a doubt or tap a quick prompt below."
+            } else {
+                "Fresh chat ready. Ask about Kotlin syntax, analogies, or errors."
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+
+        if (returnLessonCode != null) {
+            Surface(
+                onClick = onReturnToLesson,
+                shape = RoundedCornerShape(999.dp),
+                color = tactile.emeraldSoft,
+                border = BorderStroke(1.25.dp, tactile.emeraldFace.copy(alpha = 0.6f)),
+            ) {
+                Text(
+                    text = "← Return to Lesson $returnLessonCode",
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                    color = tactile.onEmeraldSoft,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                )
+            }
+        }
+    }
+}
+

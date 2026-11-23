@@ -39,6 +39,7 @@ data class PersistedAppState(
     val lessonScrollPositions: Map<String, Int> = emptyMap(),
     val activeExplainRuleByLesson: Map<String, String> = emptyMap(),
     val lastActiveLessonId: String? = null,
+    val scopedAiThreadIds: Set<String> = emptySet(),
 )
 
 interface KovaAppStateStore {
@@ -187,7 +188,13 @@ class FileKovaAppStateStore(
             } else {
                 sb.appendJsonString(state.lastActiveLessonId)
             }
-            sb.append('}')
+            sb.append(',')
+            sb.append("\"scopedAiThreadIds\":[")
+            state.scopedAiThreadIds.forEachIndexed { idx, id ->
+                if (idx > 0) sb.append(',')
+                sb.appendJsonString(id)
+            }
+            sb.append("]}")
             return sb.toString()
         }
 
@@ -247,6 +254,11 @@ class FileKovaAppStateStore(
                 }
             }
 
+            val scopedThreads = (root["scopedAiThreadIds"] as? List<Any?>)
+                ?.mapNotNull { it as? String }
+                ?.toSet()
+                ?: emptySet()
+
             return PersistedAppState(
                 schemaVersion = (root["schemaVersion"] as? Number)?.toInt() ?: 1,
                 themeModeName = root["themeModeName"] as? String ?: "WARM_DAYLIGHT",
@@ -270,6 +282,7 @@ class FileKovaAppStateStore(
                 lessonScrollPositions = lessonScrollPositions,
                 activeExplainRuleByLesson = activeExplainRuleByLesson,
                 lastActiveLessonId = root["lastActiveLessonId"] as? String,
+                scopedAiThreadIds = scopedThreads,
             )
         }
 

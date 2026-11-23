@@ -21,6 +21,7 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -31,6 +32,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Star
@@ -699,3 +701,115 @@ fun Modifier.settleOrCelebrateOnReturn(
         translationY = bounceY.value
     }
 }
+
+/**
+ * Distinct dark/bordered framed Kotlin code block for lessons, focused topic pages,
+ * practice goals, and AI replies. Uses strict JetBrains Mono typography and semantic
+ * codeWorkbench theme tokens across Daylight, Warm Dark, and AMOLED modes.
+ */
+@Composable
+fun KovaFramedCodeBlock(
+    code: String,
+    modifier: Modifier = Modifier,
+    languageLabel: String = "KOTLIN",
+    accentColor: Color? = null,
+    showLineNumbers: Boolean = false,
+) {
+    val tactile = LocalKovaTactileColors.current
+    val resolvedAccent = accentColor ?: tactile.cobaltFace
+    val lines = remember(code) { code.trimEnd().lines() }
+
+    Surface(
+        shape = RoundedCornerShape(15.dp),
+        color = tactile.codeWorkbenchWell,
+        border = BorderStroke(1.25.dp, tactile.codeWorkbenchBorder),
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // Distinct workbench header strip
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(tactile.codeWorkbenchChrome)
+                    .padding(horizontal = 12.dp, vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(7.dp)
+                            .clip(CircleShape)
+                            .background(tactile.coralFace.copy(alpha = 0.85f)),
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(7.dp)
+                            .clip(CircleShape)
+                            .background(tactile.amberFace.copy(alpha = 0.85f)),
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(7.dp)
+                            .clip(CircleShape)
+                            .background(tactile.emeraldFace.copy(alpha = 0.85f)),
+                    )
+                }
+                Text(
+                    text = languageLabel,
+                    style = KovaCodeTextStyle.copy(fontWeight = FontWeight.Bold),
+                    color = resolvedAccent,
+                    maxLines = 1,
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(tactile.codeWorkbenchBorder),
+            )
+
+            // Code body
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 11.dp),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                if (showLineNumbers) {
+                    lines.forEachIndexed { idx, codeLine ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.Top,
+                        ) {
+                            Text(
+                                text = "${idx + 1}",
+                                style = KovaCodeTextStyle,
+                                color = tactile.codeWorkbenchGutterText,
+                                modifier = Modifier.width(20.dp),
+                            )
+                            Text(
+                                text = codeLine,
+                                style = KovaCodeTextStyle,
+                                color = tactile.codeWorkbenchText,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
+                } else {
+                    Text(
+                        text = code.trimEnd(),
+                        style = KovaCodeTextStyle,
+                        color = tactile.codeWorkbenchText,
+                    )
+                }
+            }
+        }
+    }
+}
+

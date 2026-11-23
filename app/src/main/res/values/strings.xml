@@ -32,9 +32,15 @@
     <string name="lesson_word_breakdown_subtitle">Everyday meanings before any Kotlin code</string>
     <string name="lesson_section_key_takeaways">Pre-Highlighted Key Takeaways</string>
     <string name="lesson_section_concept_rules">Core Concepts &amp; Everyday Rules</string>
+    <string name="lesson_section_topics">Topics in This Lesson</string>
+    <string name="lesson_section_practice_goal">Practice Task &amp; Desired Output</string>
+    <string name="lesson_open_ide_practice_cta">Open IDE to Practice</string>
+    <string name="lesson_section_end_revision">End-of-Lesson Detailed Revision</string>
+    <string name="lesson_end_revision_subtitle">Quick recap of words, topics, and color-coded takeaways</string>
+    <string name="lesson_open_topic_cta">Open Topic</string>
     <string name="lesson_explain_cta">Explain →</string>
     <string name="lesson_back_to_lesson_cta">← Back to Lesson</string>
-    <string name="lesson_explain_badge">CONVERSATIONAL DEEP-DIVE</string>
+    <string name="lesson_explain_badge">FOCUSED TOPIC PAGE</string>
     <string name="lesson_highlight_note_placeholder">Optional personal note (saved to Revision)…</string>
     <string name="lesson_highlight_save_cta">Save Highlight</string>
     <string name="lesson_highlight_send_ai_cta">Send to AI</string>
@@ -61,11 +67,11 @@
     <string name="assignment_completed_badge">ASSIGNMENT COMPLETED</string>
 
     <!-- AI Workspace -->
-    <string name="ai_tutor_title">Scoped Lesson Tutor</string>
+    <string name="ai_tutor_title">Kova AI</string>
     <string name="ai_history_title">Chat History</string>
-    <string name="ai_new_thread_cta">New Lesson Thread</string>
+    <string name="ai_new_thread_cta">New Chat</string>
     <string name="ai_search_threads_hint">Search threads or lesson codes…</string>
-    <string name="ai_input_placeholder">Ask about active lesson code, analogies, or errors…</string>
+    <string name="ai_input_placeholder">Ask about Kotlin code, analogies, or errors…</string>
     <string name="ai_save_to_notes">Save to Notes</string>
     <string name="ai_saved_to_notes">Saved to Notes</string>
     <string name="cd_open_history">Open chat history drawer</string>
@@ -97,17 +103,22 @@
     <string name="lesson_ide_ready_badge">PRACTICE MODE</string>
     <string name="lesson_ide_empty_hint">Edit Kotlin code in Main.kt or unlock the step-by-step debugger.</string>
     <string name="ide_unlock_debugger_cta">Unlock Debugger</string>
+    <string name="ide_open_debugger_stage_cta">Debugger 70:30</string>
     <string name="ide_debugger_active_cta">Debugger ON</string>
     <string name="ide_practice_mode_cta">Code Mode</string>
+    <string name="ide_toggle_label">IDE</string>
     <string name="ide_run_check_cta">Run / Check</string>
     <string name="ide_reset_code_cta">Reset</string>
     <string name="ide_desired_output_label">DESIRED OUTPUT</string>
     <string name="ide_actual_output_label">ACTUAL RUN OUTPUT</string>
+    <string name="debugger_stage_badge">DEBUGGER STAGE · 70:30</string>
+    <string name="debugger_step_explanation_title">STEP EXPLANATION</string>
     <string name="debugger_variable_watch_title">VARIABLE &amp; STATE WATCH</string>
     <string name="debugger_console_output_title">LIVE CONSOLE OUTPUT</string>
     <string name="cd_debugger_reset">Reset debugger to line 1</string>
     <string name="cd_debugger_step_back">Step back one debugger line</string>
     <string name="cd_debugger_step_forward">Step forward one debugger line</string>
+    <string name="cd_toggle_ide_pane">Toggle split Kotlin IDE pane</string>
     <string name="cd_cycle_split_ratio">Cycle lesson and IDE split ratio</string>
 
     <!-- Settings Sheet -->

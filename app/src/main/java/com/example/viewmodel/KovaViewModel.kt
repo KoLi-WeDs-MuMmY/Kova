@@ -281,6 +281,7 @@ class KovaViewModel(
             quota = restoredQuota,
             lessonSplitRatio = restoredSplitRatio,
             lastActiveLessonId = saved.lastActiveLessonId,
+            scopedAiThreadIds = saved.scopedAiThreadIds,
             unlockedDebuggerLessonIds = saved.unlockedDebuggerLessonIds,
             lessonScrollPositions = saved.lessonScrollPositions,
             activeExplainRuleByLesson = saved.activeExplainRuleByLesson,
@@ -342,6 +343,7 @@ class KovaViewModel(
                 lessonScrollPositions = state.lessonScrollPositions,
                 activeExplainRuleByLesson = state.activeExplainRuleByLesson,
                 lastActiveLessonId = state.lastActiveLessonId,
+                scopedAiThreadIds = state.scopedAiThreadIds,
             ),
         )
     }
@@ -379,6 +381,7 @@ class KovaViewModel(
                 focusedChapterId = if (tab == KovaTab.LEARN) state.focusedChapterId else null,
                 isChapterAiSheetOpen = false,
                 isFlashcardFocusStageOpen = false,
+                isDebuggerStageOpen = false,
                 returnToLessonIdAfterAi = null,
                 returnToChapterIdAfterAi = null,
             )
@@ -396,6 +399,7 @@ class KovaViewModel(
                 focusedChapterId = null,
                 isChapterAiSheetOpen = false,
                 isFlashcardFocusStageOpen = false,
+                isDebuggerStageOpen = false,
                 returnToLessonIdAfterAi = null,
                 returnToChapterIdAfterAi = null,
             )
@@ -407,12 +411,19 @@ class KovaViewModel(
         val lesson = current.findLesson(lessonId) ?: return
         val matchingThread = current.chatThreads.firstOrNull { it.lessonCode == lesson.code }
             ?: current.activeThread
+        val resolvedThreadId = matchingThread?.id ?: current.activeThreadId
         _uiState.update { state ->
             state.copy(
                 activeDetail = null,
                 isChapterAiSheetOpen = false,
+                isDebuggerStageOpen = false,
                 selectedTab = KovaTab.AI,
-                activeThreadId = matchingThread?.id ?: state.activeThreadId,
+                activeThreadId = resolvedThreadId,
+                scopedAiThreadIds = if (resolvedThreadId != null) {
+                    state.scopedAiThreadIds + resolvedThreadId
+                } else {
+                    state.scopedAiThreadIds
+                },
                 returnToLessonIdAfterAi = lessonId,
                 returnToChapterIdAfterAi = state.focusedChapterId ?: lesson.chapterId,
             )
@@ -430,6 +441,7 @@ class KovaViewModel(
                 focusedChapterId = targetChapterId,
                 activeDetail = DetailDestination.LessonDetail(targetLessonId),
                 isChapterAiSheetOpen = false,
+                isDebuggerStageOpen = false,
                 returnToLessonIdAfterAi = null,
                 returnToChapterIdAfterAi = null,
             )
@@ -540,6 +552,8 @@ class KovaViewModel(
             it.copy(
                 activeDetail = DetailDestination.LessonDetail(lessonId),
                 lastActiveLessonId = lessonId,
+                isIdePaneOpen = false,
+                isDebuggerStageOpen = false,
                 newlyCompletedLessonInSession = null,
             )
         }
@@ -591,10 +605,52 @@ class KovaViewModel(
             }
             state.copy(
                 activeDetail = null,
+                isDebuggerStageOpen = false,
                 newlyCompletedLessonInSession = null,
                 lessonReturnEvent = returnEvent,
             )
         }
+    }
+
+    fun toggleIdePane() {
+        _uiState.update { state ->
+            if (!state.isIdePaneOpen) {
+                state.copy(
+                    isIdePaneOpen = true,
+                    lessonSplitRatio = LessonSplitRatio.RATIO_50_50,
+                )
+            } else {
+                state.copy(
+                    isIdePaneOpen = false,
+                    isDebuggerStageOpen = false,
+                )
+            }
+        }
+        persistSnapshot()
+    }
+
+    fun openIdePaneAtHalf() {
+        _uiState.update { state ->
+            state.copy(
+                isIdePaneOpen = true,
+                lessonSplitRatio = LessonSplitRatio.RATIO_50_50,
+            )
+        }
+        persistSnapshot()
+    }
+
+    fun openDebuggerStage(lessonId: String) {
+        _uiState.update { state ->
+            state.copy(
+                unlockedDebuggerLessonIds = state.unlockedDebuggerLessonIds + lessonId,
+                isDebuggerStageOpen = true,
+            )
+        }
+        persistSnapshot()
+    }
+
+    fun closeDebuggerStage() {
+        _uiState.update { it.copy(isDebuggerStageOpen = false) }
     }
 
     fun cycleLessonSplitRatio() {
@@ -843,12 +899,19 @@ class KovaViewModel(
         _uiState.update { current ->
             val matchingThread = current.chatThreads.firstOrNull { it.lessonCode == lesson.code }
                 ?: current.activeThread
+            val resolvedThreadId = matchingThread?.id ?: current.activeThreadId
             current.copy(
                 activeDetail = null,
                 focusedChapterId = null,
                 isChapterAiSheetOpen = false,
+                isDebuggerStageOpen = false,
                 selectedTab = KovaTab.AI,
-                activeThreadId = matchingThread?.id ?: current.activeThreadId,
+                activeThreadId = resolvedThreadId,
+                scopedAiThreadIds = if (resolvedThreadId != null) {
+                    current.scopedAiThreadIds + resolvedThreadId
+                } else {
+                    current.scopedAiThreadIds
+                },
                 chatComposerText = prompt,
                 returnToLessonIdAfterAi = lessonId,
                 returnToChapterIdAfterAi = current.focusedChapterId ?: lesson.chapterId,
@@ -922,47 +985,38 @@ class KovaViewModel(
     }
 
     fun createNewLessonThread() {
-        val state = _uiState.value
-        val activeLesson = state.activeLesson
-        val lessonCode = activeLesson?.code ?: "1.1"
-        val lessonTitle = activeLesson?.title ?: "Variables & Boxes"
+        createNewGeneralThread()
+    }
+
+    fun createNewGeneralThread() {
         val now = System.currentTimeMillis()
         val timeLabel = formatClockTime(now)
-        val threadId = "thread_$now"
+        val threadId = "thread_gen_$now"
 
         val newThread = ChatThread(
             id = threadId,
-            title = "Lesson $lessonCode · $lessonTitle",
-            lessonCode = lessonCode,
-            lessonTitle = lessonTitle,
+            title = "New Kotlin Chat",
+            lessonCode = "GEN",
+            lessonTitle = "General Kotlin",
             isPinned = false,
             updatedAtLabel = timeLabel,
             updatedAtMillis = now,
-            previewSnippet = "Scoped to Lesson $lessonCode. Ask anything or tap a quick prompt.",
+            previewSnippet = "Fresh chat ready. Ask anything about Kotlin.",
         )
 
-        val welcomeMessage = ChatMessage(
-            id = "msg_${now}_welcome",
-            threadId = threadId,
-            isFromUser = false,
-            content = "Scoped Tutor ready for Lesson $lessonCode ($lessonTitle). " +
-                "Ask a question or pick a quick prompt chip below—your messages save locally to this device.",
-            savedNoteId = null,
-            timestampLabel = timeLabel,
-            createdAtMillis = now,
-        )
-
-        recordPendingMessages(threadId, listOf(welcomeMessage))
         _uiState.update { current ->
             current.copy(
                 chatThreads = listOf(newThread) + current.chatThreads.filterNot { it.id == threadId },
                 activeThreadId = threadId,
-                activeThreadMessages = listOf(welcomeMessage),
+                activeThreadMessages = emptyList(),
+                scopedAiThreadIds = current.scopedAiThreadIds - threadId,
+                returnToLessonIdAfterAi = null,
+                returnToChapterIdAfterAi = null,
             )
         }
         persistSnapshot()
         vmScope.launch {
-            persistence.appendMessages(newThread, listOf(welcomeMessage))
+            persistence.appendMessages(newThread, emptyList())
         }
     }
 
@@ -1000,6 +1054,7 @@ class KovaViewModel(
             state.copy(
                 chatThreads = remaining,
                 activeThreadId = nextId,
+                scopedAiThreadIds = state.scopedAiThreadIds - threadId,
                 activeThreadMessages = if (state.activeThreadId == threadId) emptyList() else state.activeThreadMessages,
                 snackbarMessage = "Chat thread deleted.",
             )
@@ -1017,8 +1072,16 @@ class KovaViewModel(
      * and persists the draft immediately across restarts.
      */
     fun insertQuickPrompt(promptTemplate: String) {
-        val activeCode = _uiState.value.activeLesson?.code ?: "1.1"
-        val filled = "$promptTemplate (Lesson $activeCode)"
+        val state = _uiState.value
+        val filled = if (state.isActiveAiThreadLessonScoped) {
+            val activeCode = state.activeThread?.lessonCode
+                ?.takeIf { it.isNotBlank() && it != "GEN" }
+                ?: state.activeLesson?.code
+                ?: "1.1"
+            "$promptTemplate (Lesson $activeCode)"
+        } else {
+            promptTemplate
+        }
         _uiState.update { it.copy(chatComposerText = filled) }
         persistSnapshot()
     }

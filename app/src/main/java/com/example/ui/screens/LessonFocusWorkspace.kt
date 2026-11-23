@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
@@ -28,6 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.VerticalSplit
 import androidx.compose.material.icons.outlined.ViewAgenda
 import androidx.compose.material3.Icon
@@ -43,6 +45,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
@@ -63,15 +66,13 @@ import com.example.ui.theme.LocalKovaMotion
 import com.example.ui.theme.LocalKovaTactileColors
 
 /**
- * Distraction-free Phase 2 Interactive Lesson Focus Workspace:
- * - Portrait (height >= width): Horizontal Lesson Progress Bar along the TOP + Top/Bottom split.
- * - Landscape (width > height): Vertical Lesson Progress Bar along the LEFT edge rail + Left/Right split.
- * - Smooth spring-animated Split Ratio Toggle cycling 75:25 -> 50:50 -> 25:75 -> 75:25.
- * - Lesson Pane: Plain-English Word Breakdowns, Core Concept Rules, Revision-synced Highlighting (+ Send to AI),
- *   Desired Output + collapsible Show Solution, and Integrated 5-Question Test launcher.
- * - Code/IDE Pane: Guided Code Viewer + Step-by-Step Debugger with live Variable & State Watch + Console Output
- *   (auto-expands 75:25 -> 50:50 whenever Play or Step is tapped).
- * - Closed-Book Full-Screen Integrated Test Overlay covering both panes during evaluation.
+ * Phase 2.2 Distraction-Free Lesson Focus Workspace:
+ * - Split IDE pane defaults to OFF (isIdePaneOpen = false) so lessons open clean and full-screen.
+ * - Tapping the IDE toggle opens the dark Kotlin workbench at 50:50 and exposes the split-ratio
+ *   cycle pill (50:50 -> 25:75 -> 75:25) or closes the IDE back to OFF.
+ * - Entering Debugger blurs the underlying lesson workspace (Android 12+ RenderEffect blur +
+ *   dark frosted scrim) and opens the Adaptive 70:30 DebuggerFocusStageOverlay.
+ * - Closed-Book Full-Screen Integrated Test Overlay covers the workspace during grading.
  */
 @Composable
 fun LessonFocusWorkspace(
@@ -80,12 +81,17 @@ fun LessonFocusWorkspace(
     chapterProgress: Float,
     dailyRemaining: Int,
     splitRatio: LessonSplitRatio,
+    isIdePaneOpen: Boolean,
     isDebuggerUnlocked: Boolean,
+    isDebuggerStageOpen: Boolean,
     savedScrollPosition: Int = 0,
     activeExplainRuleId: String? = null,
     onScrollPositionChanged: (Int) -> Unit = {},
     onActiveExplainRuleChanged: (String?) -> Unit = {},
-    onUnlockDebugger: () -> Unit,
+    onToggleIdePane: () -> Unit,
+    onOpenIdeAtHalf: () -> Unit,
+    onOpenDebuggerStage: () -> Unit,
+    onCloseDebuggerStage: () -> Unit,
     onOpenAiFromLesson: () -> Unit,
     onCycleSplitRatio: () -> Unit,
     onSetSplitRatio: (LessonSplitRatio) -> Unit,
@@ -136,6 +142,12 @@ fun LessonFocusWorkspace(
         label = "lesson_split_ide_weight",
     )
 
+    val blurModifier = if (isDebuggerStageOpen && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        Modifier.blur(18.dp)
+    } else {
+        Modifier
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -144,12 +156,13 @@ fun LessonFocusWorkspace(
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
+                .then(blurModifier)
                 .navigationBarsPadding(),
         ) {
             val isLandscape = maxWidth > maxHeight
 
             if (isLandscape) {
-                // Landscape: Vertical Progress Bar on LEFT side edge rail + Left/Right Split Panes
+                // Landscape: Vertical Progress Bar on LEFT side edge rail + Full/Split Panes
                 Row(
                     modifier = Modifier
                         .fillMaxSize()
@@ -159,7 +172,12 @@ fun LessonFocusWorkspace(
                     LandscapeLeftProgressRail(
                         progress = animatedProgress,
                         isCompleted = isCompleted,
+                        isIdePaneOpen = isIdePaneOpen,
                         splitRatio = splitRatio,
+                        onToggleIdePane = {
+                            feedback.chapterSwoosh(view)
+                            onToggleIdePane()
+                        },
                         onOpenAiFromLesson = {
                             feedback.tap(view)
                             onOpenAiFromLesson()
@@ -189,29 +207,32 @@ fun LessonFocusWorkspace(
                             activeExplainRuleId = activeExplainRuleId,
                             onScrollPositionChanged = onScrollPositionChanged,
                             onActiveExplainRuleChanged = onActiveExplainRuleChanged,
+                            onOpenIdeForPractice = onOpenIdeAtHalf,
                             onSaveHighlight = onSaveHighlight,
                             onAskAiHighlight = onAskAiHighlight,
                             onStartIntegratedTest = { isTestOverlayOpen = true },
                             modifier = Modifier
-                                .weight(animatedLessonWeight)
+                                .weight(if (isIdePaneOpen) animatedLessonWeight else 1f)
                                 .fillMaxHeight(),
                         )
-                        LessonDebuggerPane(
-                            lessonId = lesson.id,
-                            practiceTask = interactiveContent.practiceTask,
-                            walkthrough = interactiveContent.debugger,
-                            splitRatio = splitRatio,
-                            isDebuggerUnlocked = isDebuggerUnlocked,
-                            onUnlockDebugger = onUnlockDebugger,
-                            onAutoExpandToHalf = { onSetSplitRatio(LessonSplitRatio.RATIO_50_50) },
-                            modifier = Modifier
-                                .weight(animatedIdeWeight)
-                                .fillMaxHeight(),
-                        )
+                        if (isIdePaneOpen) {
+                            LessonDebuggerPane(
+                                lessonId = lesson.id,
+                                practiceTask = interactiveContent.practiceTask,
+                                walkthrough = interactiveContent.debugger,
+                                splitRatio = splitRatio,
+                                isDebuggerUnlocked = isDebuggerUnlocked,
+                                onOpenDebuggerStage = onOpenDebuggerStage,
+                                onAutoExpandToHalf = { onSetSplitRatio(LessonSplitRatio.RATIO_50_50) },
+                                modifier = Modifier
+                                    .weight(animatedIdeWeight)
+                                    .fillMaxHeight(),
+                            )
+                        }
                     }
                 }
             } else {
-                // Portrait: Horizontal Progress Bar across TOP + Top/Bottom Split Panes
+                // Portrait: Horizontal Progress Bar across TOP + Full/Split Panes
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -221,7 +242,12 @@ fun LessonFocusWorkspace(
                     PortraitTopProgressBar(
                         progress = animatedProgress,
                         isCompleted = isCompleted,
+                        isIdePaneOpen = isIdePaneOpen,
                         splitRatio = splitRatio,
+                        onToggleIdePane = {
+                            feedback.chapterSwoosh(view)
+                            onToggleIdePane()
+                        },
                         onOpenAiFromLesson = {
                             feedback.tap(view)
                             onOpenAiFromLesson()
@@ -251,28 +277,52 @@ fun LessonFocusWorkspace(
                             activeExplainRuleId = activeExplainRuleId,
                             onScrollPositionChanged = onScrollPositionChanged,
                             onActiveExplainRuleChanged = onActiveExplainRuleChanged,
+                            onOpenIdeForPractice = onOpenIdeAtHalf,
                             onSaveHighlight = onSaveHighlight,
                             onAskAiHighlight = onAskAiHighlight,
                             onStartIntegratedTest = { isTestOverlayOpen = true },
                             modifier = Modifier
-                                .weight(animatedLessonWeight)
+                                .weight(if (isIdePaneOpen) animatedLessonWeight else 1f)
                                 .fillMaxWidth(),
                         )
-                        LessonDebuggerPane(
-                            lessonId = lesson.id,
-                            practiceTask = interactiveContent.practiceTask,
-                            walkthrough = interactiveContent.debugger,
-                            splitRatio = splitRatio,
-                            isDebuggerUnlocked = isDebuggerUnlocked,
-                            onUnlockDebugger = onUnlockDebugger,
-                            onAutoExpandToHalf = { onSetSplitRatio(LessonSplitRatio.RATIO_50_50) },
-                            modifier = Modifier
-                                .weight(animatedIdeWeight)
-                                .fillMaxWidth(),
-                        )
+                        if (isIdePaneOpen) {
+                            LessonDebuggerPane(
+                                lessonId = lesson.id,
+                                practiceTask = interactiveContent.practiceTask,
+                                walkthrough = interactiveContent.debugger,
+                                splitRatio = splitRatio,
+                                isDebuggerUnlocked = isDebuggerUnlocked,
+                                onOpenDebuggerStage = onOpenDebuggerStage,
+                                onAutoExpandToHalf = { onSetSplitRatio(LessonSplitRatio.RATIO_50_50) },
+                                modifier = Modifier
+                                    .weight(animatedIdeWeight)
+                                    .fillMaxWidth(),
+                            )
+                        }
                     }
                 }
             }
+        }
+
+        // Blurred-Background Adaptive 70:30 Debugger Stage Overlay
+        AnimatedVisibility(
+            visible = isDebuggerStageOpen,
+            enter = if (motion.enabled) {
+                fadeIn(tween(200)) + scaleIn(
+                    initialScale = 0.95f,
+                    animationSpec = spring(dampingRatio = 0.78f, stiffness = 340f),
+                )
+            } else {
+                fadeIn(snap())
+            },
+            exit = if (motion.enabled) fadeOut(tween(160)) else fadeOut(snap()),
+        ) {
+            DebuggerFocusStageOverlay(
+                lessonId = lesson.id,
+                lessonCode = lesson.code,
+                walkthrough = interactiveContent.debugger,
+                onClose = onCloseDebuggerStage,
+            )
         }
 
         // Full-Screen Closed-Book Integrated Lesson Test Overlay
@@ -308,7 +358,9 @@ fun LessonFocusWorkspace(
 private fun PortraitTopProgressBar(
     progress: Float,
     isCompleted: Boolean,
+    isIdePaneOpen: Boolean,
     splitRatio: LessonSplitRatio,
+    onToggleIdePane: () -> Unit,
     onOpenAiFromLesson: () -> Unit,
     onCycleSplitRatio: () -> Unit,
     onClose: () -> Unit,
@@ -322,7 +374,7 @@ private fun PortraitTopProgressBar(
             .fillMaxWidth()
             .testTag("lesson_progress_bar_portrait"),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Surface(
             shape = CircleShape,
@@ -369,7 +421,7 @@ private fun PortraitTopProgressBar(
             }
         }
 
-        // Compact AI Tutor shortcut (supports Lesson -> AI -> System Back -> Lesson)
+        // Compact AI Tutor shortcut (supports Lesson -> AI -> System Back -> Exact Lesson)
         Surface(
             shape = CircleShape,
             color = tactile.cobaltSoft,
@@ -390,15 +442,18 @@ private fun PortraitTopProgressBar(
             }
         }
 
-        // Split Ratio Toggle Pill (75:25 -> 50:50 -> 25:75)
+        // IDE Toggle Button (OFF by default; opens split IDE at 50:50)
         Surface(
-            onClick = onCycleSplitRatio,
+            onClick = onToggleIdePane,
             shape = KovaExpressiveShapes.Pill,
-            color = tactile.cardFace,
-            border = BorderStroke(tactile.cardBorderWidthDp.dp, tactile.cobaltFace.copy(alpha = 0.6f)),
+            color = if (isIdePaneOpen) tactile.codeWorkbenchChrome else tactile.cardFace,
+            border = BorderStroke(
+                tactile.cardBorderWidthDp.dp,
+                if (isIdePaneOpen) tactile.emeraldFace else tactile.cardOutline,
+            ),
             modifier = Modifier
                 .height(44.dp)
-                .testTag("lesson_split_ratio_toggle"),
+                .testTag("lesson_ide_toggle_button"),
         ) {
             Row(
                 modifier = Modifier.padding(horizontal = 11.dp),
@@ -406,18 +461,51 @@ private fun PortraitTopProgressBar(
                 horizontalArrangement = Arrangement.spacedBy(5.dp),
             ) {
                 Icon(
-                    imageVector = Icons.Outlined.ViewAgenda,
-                    contentDescription = stringResource(R.string.cd_cycle_split_ratio),
-                    tint = tactile.cobaltFace,
+                    imageVector = Icons.Outlined.Code,
+                    contentDescription = stringResource(R.string.cd_toggle_ide_pane),
+                    tint = if (isIdePaneOpen) tactile.emeraldFace else tactile.cobaltFace,
                     modifier = Modifier.size(16.dp),
                 )
                 Text(
-                    text = splitRatio.badgeLabel,
+                    text = stringResource(R.string.ide_toggle_label),
                     style = KovaMonoBadgeTextStyle,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = if (isIdePaneOpen) tactile.codeWorkbenchText else MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     softWrap = false,
                 )
+            }
+        }
+
+        // Split Ratio Cycle Pill (visible whenever IDE is open)
+        if (isIdePaneOpen) {
+            Surface(
+                onClick = onCycleSplitRatio,
+                shape = KovaExpressiveShapes.Pill,
+                color = tactile.cardFace,
+                border = BorderStroke(tactile.cardBorderWidthDp.dp, tactile.cobaltFace.copy(alpha = 0.6f)),
+                modifier = Modifier
+                    .height(44.dp)
+                    .testTag("lesson_split_ratio_toggle"),
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.ViewAgenda,
+                        contentDescription = stringResource(R.string.cd_cycle_split_ratio),
+                        tint = tactile.cobaltFace,
+                        modifier = Modifier.size(15.dp),
+                    )
+                    Text(
+                        text = splitRatio.badgeLabel,
+                        style = KovaMonoBadgeTextStyle,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        softWrap = false,
+                    )
+                }
             }
         }
     }
@@ -427,7 +515,9 @@ private fun PortraitTopProgressBar(
 private fun LandscapeLeftProgressRail(
     progress: Float,
     isCompleted: Boolean,
+    isIdePaneOpen: Boolean,
     splitRatio: LessonSplitRatio,
+    onToggleIdePane: () -> Unit,
     onOpenAiFromLesson: () -> Unit,
     onCycleSplitRatio: () -> Unit,
     onClose: () -> Unit,
@@ -443,7 +533,7 @@ private fun LandscapeLeftProgressRail(
             .padding(vertical = 4.dp)
             .testTag("lesson_progress_bar_landscape"),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Surface(
             shape = CircleShape,
@@ -512,13 +602,16 @@ private fun LandscapeLeftProgressRail(
         }
 
         Surface(
-            onClick = onCycleSplitRatio,
+            onClick = onToggleIdePane,
             shape = RoundedCornerShape(16.dp),
-            color = tactile.cardFace,
-            border = BorderStroke(tactile.cardBorderWidthDp.dp, tactile.cobaltFace.copy(alpha = 0.6f)),
+            color = if (isIdePaneOpen) tactile.codeWorkbenchChrome else tactile.cardFace,
+            border = BorderStroke(
+                tactile.cardBorderWidthDp.dp,
+                if (isIdePaneOpen) tactile.emeraldFace else tactile.cardOutline,
+            ),
             modifier = Modifier
                 .width(56.dp)
-                .testTag("lesson_split_ratio_toggle"),
+                .testTag("lesson_ide_toggle_button"),
         ) {
             Column(
                 modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
@@ -526,17 +619,48 @@ private fun LandscapeLeftProgressRail(
                 verticalArrangement = Arrangement.spacedBy(3.dp),
             ) {
                 Icon(
-                    imageVector = Icons.Outlined.VerticalSplit,
-                    contentDescription = stringResource(R.string.cd_cycle_split_ratio),
-                    tint = tactile.cobaltFace,
+                    imageVector = Icons.Outlined.Code,
+                    contentDescription = stringResource(R.string.cd_toggle_ide_pane),
+                    tint = if (isIdePaneOpen) tactile.emeraldFace else tactile.cobaltFace,
                     modifier = Modifier.size(16.dp),
                 )
                 Text(
-                    text = splitRatio.badgeLabel,
+                    text = stringResource(R.string.ide_toggle_label),
                     style = KovaMonoBadgeTextStyle,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = if (isIdePaneOpen) tactile.codeWorkbenchText else MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                 )
+            }
+        }
+
+        if (isIdePaneOpen) {
+            Surface(
+                onClick = onCycleSplitRatio,
+                shape = RoundedCornerShape(16.dp),
+                color = tactile.cardFace,
+                border = BorderStroke(tactile.cardBorderWidthDp.dp, tactile.cobaltFace.copy(alpha = 0.6f)),
+                modifier = Modifier
+                    .width(56.dp)
+                    .testTag("lesson_split_ratio_toggle"),
+            ) {
+                Column(
+                    modifier = Modifier.padding(vertical = 7.dp, horizontal = 4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.VerticalSplit,
+                        contentDescription = stringResource(R.string.cd_cycle_split_ratio),
+                        tint = tactile.cobaltFace,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Text(
+                        text = splitRatio.badgeLabel,
+                        style = KovaMonoBadgeTextStyle,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                    )
+                }
             }
         }
     }

@@ -88,6 +88,11 @@ data class KovaTactileColors(
     val keyIdea: Color,
     val codeRule: Color,
     val gotcha: Color,
+    val codeWorkbenchChrome: Color,
+    val codeWorkbenchWell: Color,
+    val codeWorkbenchBorder: Color,
+    val codeWorkbenchText: Color,
+    val codeWorkbenchGutterText: Color,
     val isDarkSurface: Boolean,
     val isAmoled: Boolean,
 )
@@ -131,6 +136,11 @@ private val WarmDaylightTactileColors = KovaTactileColors(
     keyIdea = HighlightKeyIdeaDay,
     codeRule = HighlightCodeRuleDay,
     gotcha = HighlightGotchaDay,
+    codeWorkbenchChrome = Color(0xFF171C26),
+    codeWorkbenchWell = Color(0xFF0E131B),
+    codeWorkbenchBorder = Color(0xFF2B3548),
+    codeWorkbenchText = Color(0xFFF1F5F9),
+    codeWorkbenchGutterText = Color(0xFF7B8AA4),
     isDarkSurface = false,
     isAmoled = false,
 )
@@ -170,6 +180,11 @@ private val WarmDarkTactileColors = KovaTactileColors(
     keyIdea = HighlightKeyIdeaDark,
     codeRule = HighlightCodeRuleDark,
     gotcha = HighlightGotchaDark,
+    codeWorkbenchChrome = Color(0xFF161B23),
+    codeWorkbenchWell = Color(0xFF0D1117),
+    codeWorkbenchBorder = Color(0xFF2D3646),
+    codeWorkbenchText = Color(0xFFE6EDF3),
+    codeWorkbenchGutterText = Color(0xFF7D8590),
     isDarkSurface = true,
     isAmoled = false,
 )
@@ -185,6 +200,11 @@ private val TrueAmoledTactileColors = WarmDarkTactileColors.copy(
     ringTrack = AmoledSurfaceHigh,
     ringTrackBevel = AmoledSurfaceLow,
     pathInactive = Color(0xFF303030),
+    codeWorkbenchChrome = Color(0xFF0A0D12),
+    codeWorkbenchWell = Color(0xFF05070A),
+    codeWorkbenchBorder = Color(0xFF232A36),
+    codeWorkbenchText = Color(0xFFF3F6FA),
+    codeWorkbenchGutterText = Color(0xFF6E7A8E),
     isAmoled = true,
 )
 

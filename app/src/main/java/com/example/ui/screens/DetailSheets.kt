@@ -70,7 +70,10 @@ fun DetailSheetHost(
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope,
     onClose: () -> Unit,
-    onUnlockLessonDebugger: (lessonId: String) -> Unit,
+    onToggleIdePane: () -> Unit,
+    onOpenIdeAtHalf: () -> Unit,
+    onOpenDebuggerStage: (lessonId: String) -> Unit,
+    onCloseDebuggerStage: () -> Unit,
     onUpdateLessonScrollPosition: (lessonId: String, scrollOffset: Int) -> Unit,
     onSetLessonExplainRule: (lessonId: String, ruleId: String?) -> Unit,
     onOpenAiFromLesson: (lessonId: String) -> Unit,
@@ -109,7 +112,9 @@ fun DetailSheetHost(
                             chapterProgress = chapterProgress,
                             dailyRemaining = uiState.quota.dailyLessonsRemaining,
                             splitRatio = uiState.lessonSplitRatio,
+                            isIdePaneOpen = uiState.isIdePaneOpen,
                             isDebuggerUnlocked = uiState.isDebuggerUnlockedFor(lesson.id),
+                            isDebuggerStageOpen = uiState.isDebuggerStageOpen,
                             savedScrollPosition = uiState.scrollPositionFor(lesson.id),
                             activeExplainRuleId = uiState.activeExplainRuleFor(lesson.id),
                             onScrollPositionChanged = { offset ->
@@ -118,7 +123,10 @@ fun DetailSheetHost(
                             onActiveExplainRuleChanged = { ruleId ->
                                 onSetLessonExplainRule(lesson.id, ruleId)
                             },
-                            onUnlockDebugger = { onUnlockLessonDebugger(lesson.id) },
+                            onToggleIdePane = onToggleIdePane,
+                            onOpenIdeAtHalf = onOpenIdeAtHalf,
+                            onOpenDebuggerStage = { onOpenDebuggerStage(lesson.id) },
+                            onCloseDebuggerStage = onCloseDebuggerStage,
                             onOpenAiFromLesson = { onOpenAiFromLesson(lesson.id) },
                             onCycleSplitRatio = onCycleSplitRatio,
                             onSetSplitRatio = onSetSplitRatio,

@@ -109,10 +109,26 @@ This document preserves the North Star vision, Phase 1 deliverable contract, and
   - Rebuilt Revision with a compact Mastery & Quota header, active Chapter Revision Sheet shortcut, clean 3-way segmented binder (`Notes` | `Flashcards` | `SR`), and zero-overlap `FlowRow` cards.
   - Added a Preview Card with `"Launch Focus Stage"` opening a full-screen **Focused Flashcard Stage** over a real blurred backdrop (`Modifier.blur(18.dp)` on Android 12+ + frosted scrim), tactile 3D-flip cards, and dedicated scrollable monospace Kotlin code blocks.
 
+## Part B.6: Phase 2.1 Lesson Engine UX, IDE Workspace & Navigation Overhaul (Implemented)
+
+- **Strict 3-Font Typography Discipline**: Enforced `Space Grotesk` (headings/titles), `Plus Jakarta Sans` (body/UI controls), and `JetBrains Mono` (code blocks, IDE, badges) across every screen.
+- **Spacious AI Tutor & Corner Status Popover**: Slim header with `KovaAiEmblem`, History toggle, and expandable top-right status/quota popover (`Ready` / `Thinking` / `Offline` + quota telemetry).
+- **Distraction-Free Reader & Plain-English Math**: Plain human math phrasing, `"Explain →"` conversational focus view, Desired Output with collapsed-by-default `"Show Solution & Line Notes"`, and clean Chapter 1 pacing (Lesson 1.1 free of `+=`, introduced in Lesson 1.3).
+- **Practice-First IDE & Smart Back-Navigation**: IDE opens in Practice/Editor mode by default with an `"Unlock Debugger"` gate; Smart System Back-Navigation restores exact lesson, scroll offset, and state after jumping to AI, routes tabs back to Home, and prompts double-Back to exit on Home.
+
+## Part B.7: Phase 2.2 AI Cleanup, Structured Lesson Topics & Blurred 70:30 Debugger Stage (Implemented)
+
+- **AI Context Banner Scoping & Centered Emblem**: Removed bottom clutter cards, scoped the `"Scoped Tutor · Lesson X.Y"` banner strictly to lesson-launched threads (hidden on fresh `New Chat` general threads), added `KovaAiCenteredEmptyState` centerpiece, and rendered dark-framed `KovaFramedCodeBlock` snippets inside replies.
+- **Intra-Lesson Structurization & Dedicated Focused Topic Pages**: Removed stacked top highlight banners; structured every lesson into (1) Clean Header & Progress → (2) Numbered Topics List (`1.1`, `1.2`, ...) where tapping any topic opens a Dedicated Focused Topic Page (analogy → Kotlin connection → dark-framed monospace code block → plain-English symbol breakdown) → (3) Practice Task & Framed Desired Output with interactive code-writing checklist, `"Open IDE to Practice"`, and collapsed `"Show Solution"` → (4) Visual Separator Bar → End-of-Lesson Detailed Revision (Topic Recap, Word Breakdowns, and filterable Pre-Highlighted Takeaways + Saved Highlights moved exclusively here) → (5) Integrated 5-Question Closed-Book Test.
+- **IDE Split Default OFF, Exact Line Alignment & Blurred 70:30 Debugger Stage**:
+  - Split IDE defaults to **OFF** on lesson open; top bar (portrait) / left rail (landscape) exposes an `"IDE"` toggle opening IDE at `50:50` alongside the `50:50 -> 25:75 -> 75:25` split cycle pill.
+  - Added dedicated dark code-workbench theme tokens across Daylight, Warm Dark, and AMOLED, and exact `TextLayoutResult`-aligned line-number gutters even when lines wrap.
+  - Tapping `"Unlock Debugger"` / `"Debugger 70:30"` opens a full-screen blurred-backdrop (`Modifier.blur(18.dp)` + dark scrim) **Adaptive 70:30 Debugger Stage** (`DebuggerFocusStageOverlay`: vertical 70:30 in portrait, side-by-side 70:30 in landscape) pairing a 70% Debugger/Watch/Console workbench with a 30% Plain-English Step Explanation panel.
+
 ---
 
-## Part C: Upcoming Phase 2/3 (Live Gemini AI, Interactive Lessons & Lab Prompt Builder)
+## Part C: Upcoming Phase 3 (Live Gemini AI, Lab Prompt Builder & Local Terminal / File Runner Integration)
 
-- **Interactive Lesson Reader & Debugger**: Full curriculum text with interactive highlighting, step-by-step Debugger Line Animation + live Variable Watch panel, Desired Output + collapsible Show Solution, and real >= 80% Lesson Tests.
 - **Lab Virtual Prompt Builder**: Interactive `<Folder>` / `<File>` tree builder & single-prompt bundler in `Lab`.
+- **Local Terminal / File Runner Integration**: Export, sync, and execute virtual `<Folder>` / `<File>` Kotlin project bundles directly alongside external Android developer tools—including **Termux**, **CodeAssist**, and **GitHub** workflows—so learners can compile and run multi-file projects from Kova's Lab and Practice workspace.
 - **Live Firebase AI Logic (`Firebase.ai`)**: Swap `LocalLessonTutorEngine` behind the existing ViewModel/Repository boundary for live scoped Gemini tutoring, Morning Digest summaries, Learner Behavior Profile, and timed Spaced-Repetition pop-ups.

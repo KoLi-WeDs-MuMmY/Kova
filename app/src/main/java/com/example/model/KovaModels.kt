@@ -406,7 +406,10 @@ data class KovaUiState(
     val isFlashcardFocusStageOpen: Boolean = false,
     val isAiHistoryVisible: Boolean? = null,
     val lessonSplitRatio: LessonSplitRatio = LessonSplitRatio.RATIO_75_25,
+    val isIdePaneOpen: Boolean = false,
+    val isDebuggerStageOpen: Boolean = false,
     val aiTutorStatus: AiTutorStatus = AiTutorStatus.READY,
+    val scopedAiThreadIds: Set<String> = emptySet(),
     val returnToLessonIdAfterAi: String? = null,
     val returnToChapterIdAfterAi: String? = null,
     val lastActiveLessonId: String? = null,
@@ -427,6 +430,10 @@ data class KovaUiState(
 ) {
     val isLessonFocusMode: Boolean
         get() = activeDetail is DetailDestination.LessonDetail
+
+    val isActiveAiThreadLessonScoped: Boolean
+        get() = returnToLessonIdAfterAi != null ||
+            (activeThreadId != null && activeThreadId in scopedAiThreadIds)
 
     val isDebuggerUnlocked: Boolean
         get() {

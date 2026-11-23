@@ -85,7 +85,9 @@ import com.example.model.ChatMessage
 import com.example.model.ChatThread
 import com.example.model.HighlightCategory
 import com.example.model.KovaUiState
+import com.example.ui.components.KovaAiCenteredEmptyState
 import com.example.ui.components.KovaAiEmblem
+import com.example.ui.components.KovaFramedCodeBlock
 import com.example.ui.components.KovaPillBadge
 import com.example.ui.components.KovaTactileButton
 import com.example.ui.components.KovaTactileCard
@@ -420,14 +422,21 @@ private fun AiChatMainPane(
     val listState = rememberLazyListState()
     val messages = uiState.activeThreadMessages
     val activeThread = uiState.activeThread
-    val scopedLabel = if (activeThread != null) {
-        "Lesson ${activeThread.lessonCode} · ${activeThread.lessonTitle}"
-    } else {
-        val activeLesson = uiState.activeLesson
-        "Lesson ${activeLesson?.code ?: "1.1"} · ${activeLesson?.title ?: "Words & Variables"}"
-    }
-    val activeLessonCode = activeThread?.lessonCode ?: uiState.activeLesson?.code ?: "1.1"
+    val isLessonScoped = uiState.isActiveAiThreadLessonScoped
     val returnLesson = uiState.returnToLessonIdAfterAi?.let { uiState.findLesson(it) }
+    val scopedLabel = when {
+        returnLesson != null -> "Lesson ${returnLesson.code} · ${returnLesson.title}"
+        activeThread != null && activeThread.lessonCode != "GEN" ->
+            "Lesson ${activeThread.lessonCode} · ${activeThread.lessonTitle}"
+        else -> {
+            val activeLesson = uiState.activeLesson
+            "Lesson ${activeLesson?.code ?: "1.1"} · ${activeLesson?.title ?: "Words & Variables"}"
+        }
+    }
+    val activeLessonCode = returnLesson?.code
+        ?: activeThread?.lessonCode?.takeUnless { it == "GEN" }
+        ?: uiState.activeLesson?.code
+        ?: "1.1"
     var isStatusPopoverOpen by remember { mutableStateOf(false) }
 
     val statusDotColor = when (uiState.aiTutorStatus) {
@@ -446,8 +455,8 @@ private fun AiChatMainPane(
         modifier = modifier.padding(bottom = bottomInsetPadding),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        // Minimal Single-Row Utility Strip: Optional Return-to-Lesson Pill, Compact Corner Status Pill
-        // (Ready / Thinking / Offline with expandable quota popover), and History Drawer Toggle.
+        // Minimal Single-Row Header: KovaAiEmblem + Title/Return pill on left,
+        // compact corner status pill/popover + Hide/Unhide Chat History toggle on right.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -456,55 +465,56 @@ private fun AiChatMainPane(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            if (showHistoryToggle && returnLesson != null) {
-                Surface(
-                    onClick = {
-                        feedback.tap(view)
-                        onReturnToLesson()
-                    },
-                    shape = KovaExpressiveShapes.Pill,
-                    color = tactile.emeraldSoft,
-                    border = BorderStroke(1.dp, tactile.emeraldFace.copy(alpha = 0.55f)),
-                    modifier = Modifier
-                        .height(36.dp)
-                        .testTag("ai_return_to_lesson_pill"),
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+            if (showHistoryToggle) {
+                KovaAiEmblem(size = 32.dp, lipHeight = 2.5.dp)
+
+                if (returnLesson != null) {
+                    Surface(
+                        onClick = {
+                            feedback.tap(view)
+                            onReturnToLesson()
+                        },
+                        shape = KovaExpressiveShapes.Pill,
+                        color = tactile.emeraldSoft,
+                        border = BorderStroke(1.dp, tactile.emeraldFace.copy(alpha = 0.55f)),
+                        modifier = Modifier
+                            .height(36.dp)
+                            .testTag("ai_return_to_lesson_pill"),
                     ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = "Return to Lesson ${returnLesson.code}",
-                            tint = tactile.onEmeraldSoft,
-                            modifier = Modifier.size(14.dp),
-                        )
-                        Text(
-                            text = "Back to L${returnLesson.code}",
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                            color = tactile.onEmeraldSoft,
-                            maxLines = 1,
-                            softWrap = false,
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = "Return to Lesson ${returnLesson.code}",
+                                tint = tactile.onEmeraldSoft,
+                                modifier = Modifier.size(14.dp),
+                            )
+                            Text(
+                                text = "L${returnLesson.code}",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                color = tactile.onEmeraldSoft,
+                                maxLines = 1,
+                                softWrap = false,
+                            )
+                        }
                     }
+                } else {
+                    Text(
+                        text = stringResource(R.string.ai_tutor_title),
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onBackground,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
-            } else if (showHistoryToggle) {
-                Text(
-                    text = scopedLabel,
-                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
             }
 
-            if (returnLesson != null || !showHistoryToggle) {
-                Spacer(modifier = Modifier.weight(1f))
-            }
+            Spacer(modifier = Modifier.weight(1f))
 
-            // Compact Corner Status Pill (Ready / Thinking / Offline) & Anchored Popover
+            // Compact Corner Status Pill (Ready / Thinking / Offline) & Anchored Quota/Context Popover
             Box {
                 Surface(
                     onClick = {
@@ -589,12 +599,12 @@ private fun AiChatMainPane(
                                 verticalArrangement = Arrangement.spacedBy(2.dp),
                             ) {
                                 Text(
-                                    text = "ACTIVE LESSON",
+                                    text = if (isLessonScoped) "SCOPED CONTEXT" else "CHAT MODE",
                                     style = KovaMonoBadgeTextStyle,
                                     color = tactile.onCobaltSoft.copy(alpha = 0.78f),
                                 )
                                 Text(
-                                    text = scopedLabel,
+                                    text = if (isLessonScoped) scopedLabel else "General Kotlin Tutor",
                                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                                     color = tactile.onCobaltSoft,
                                     maxLines = 2,
@@ -663,22 +673,78 @@ private fun AiChatMainPane(
             }
         }
 
-        // Scrollable Message Stream with maximum vertical chat workspace
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .testTag("ai_message_list"),
-            contentPadding = PaddingValues(vertical = 4.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            items(items = messages, key = { it.id }) { msg ->
-                AiChatBubble(
-                    message = msg,
-                    activeLessonCode = activeLessonCode,
-                    onSaveToNotes = { category -> onSaveMessageToNotes(msg.id, category) },
+        // Scoped Tutor / Lesson Context Banner — shown ONLY when opened from a specific lesson or lesson action
+        if (isLessonScoped) {
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = tactile.cobaltSoft,
+                border = BorderStroke(1.dp, tactile.cobaltFace.copy(alpha = 0.45f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("ai_scoped_lesson_banner"),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Lock,
+                        contentDescription = null,
+                        tint = tactile.cobaltFace,
+                        modifier = Modifier.size(15.dp),
+                    )
+                    Text(
+                        text = "Scoped Tutor · $scopedLabel",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                        color = tactile.onCobaltSoft,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+
+        // Main Chat Workspace: Centered AI Emblem when empty/fresh, or full breathing-room message stream
+        if (messages.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .testTag("ai_centered_empty_state"),
+                contentAlignment = Alignment.Center,
+            ) {
+                KovaAiCenteredEmptyState(
+                    isLessonScoped = isLessonScoped,
+                    scopedLessonLabel = if (isLessonScoped) scopedLabel else null,
+                    returnLessonCode = returnLesson?.code,
+                    onReturnToLesson = {
+                        feedback.tap(view)
+                        onReturnToLesson()
+                    },
                 )
+            }
+        } else {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .testTag("ai_message_list"),
+                contentPadding = PaddingValues(vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                items(items = messages, key = { it.id }) { msg ->
+                    AiChatBubble(
+                        message = msg,
+                        activeLessonCode = activeLessonCode,
+                        isLessonScoped = isLessonScoped,
+                        onSaveToNotes = { category -> onSaveMessageToNotes(msg.id, category) },
+                    )
+                }
             }
         }
 
@@ -876,6 +942,7 @@ private fun parseTutorContentSegments(raw: String): List<TutorContentSegment> {
 private fun AiChatBubble(
     message: ChatMessage,
     activeLessonCode: String,
+    isLessonScoped: Boolean,
     onSaveToNotes: (HighlightCategory) -> Unit,
 ) {
     val tactile = LocalKovaTactileColors.current
@@ -913,16 +980,18 @@ private fun AiChatBubble(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(7.dp),
                     ) {
-                        Surface(
-                            shape = KovaExpressiveShapes.Pill,
-                            color = tactile.cobaltLip.copy(alpha = 0.65f),
-                        ) {
-                            Text(
-                                text = "L$activeLessonCode",
-                                style = KovaCodeTextStyle.copy(fontWeight = FontWeight.Bold),
-                                color = tactile.onCobaltFace,
-                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
-                            )
+                        if (isLessonScoped) {
+                            Surface(
+                                shape = KovaExpressiveShapes.Pill,
+                                color = tactile.cobaltLip.copy(alpha = 0.65f),
+                            ) {
+                                Text(
+                                    text = "L$activeLessonCode",
+                                    style = KovaCodeTextStyle.copy(fontWeight = FontWeight.Bold),
+                                    color = tactile.onCobaltFace,
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                                )
+                            }
                         }
                         Text(
                             text = message.timestampLabel,
@@ -1003,39 +1072,11 @@ private fun AiChatBubble(
 
                     segments.forEach { segment ->
                         if (segment.isCodeBlock) {
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.surfaceContainerLow,
-                                border = BorderStroke(1.dp, tactile.cardOutline),
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(11.dp),
-                                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(5.dp),
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Outlined.Code,
-                                            contentDescription = null,
-                                            tint = tactile.cobaltFace,
-                                            modifier = Modifier.size(14.dp),
-                                        )
-                                        Text(
-                                            text = "KOTLIN",
-                                            style = KovaCodeTextStyle.copy(fontWeight = FontWeight.Bold),
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    }
-                                    Text(
-                                        text = segment.text,
-                                        style = KovaCodeTextStyle,
-                                        color = tactile.cobaltFace,
-                                    )
-                                }
-                            }
+                            KovaFramedCodeBlock(
+                                code = segment.text,
+                                languageLabel = "KOTLIN",
+                                accentColor = tactile.cobaltFace,
+                            )
                         } else {
                             Text(
                                 text = segment.text,
@@ -1280,7 +1321,7 @@ private fun ChatHistoryPanel(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                             ) {
                                 KovaPillBadge(
-                                    text = "L${thread.lessonCode}",
+                                    text = if (thread.lessonCode == "GEN") "CHAT" else "L${thread.lessonCode}",
                                     containerColor = tactile.cardFace,
                                     contentColor = tactile.cobaltFace,
                                     borderColor = tactile.cardOutline,

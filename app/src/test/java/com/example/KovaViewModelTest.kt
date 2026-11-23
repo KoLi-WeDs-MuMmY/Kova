@@ -717,4 +717,103 @@ class KovaViewModelTest {
         vm.setAiTutorStatus(AiTutorStatus.READY)
         assertEquals(AiTutorStatus.READY, vm.uiState.value.aiTutorStatus)
     }
+
+    @Test
+    fun lessonOpensWithIdeOffByDefaultAndTogglesToHalfSplitAndBack() {
+        val vm = KovaViewModel()
+        vm.openChapterFocus("ch_1")
+        vm.openLesson("l_1_1")
+
+        // Phase 2.2: Split IDE defaults to OFF so the lesson reader opens full-screen
+        assertFalse(vm.uiState.value.isIdePaneOpen)
+        assertFalse(vm.uiState.value.isDebuggerStageOpen)
+
+        // Toggling IDE opens split mode at 50:50
+        vm.toggleIdePane()
+        assertTrue(vm.uiState.value.isIdePaneOpen)
+        assertEquals(LessonSplitRatio.RATIO_50_50, vm.uiState.value.lessonSplitRatio)
+
+        // Toggling IDE again hides it cleanly
+        vm.toggleIdePane()
+        assertFalse(vm.uiState.value.isIdePaneOpen)
+
+        // Opening via "Open IDE to Practice" button also launches 50:50 split
+        vm.openIdePaneAtHalf()
+        assertTrue(vm.uiState.value.isIdePaneOpen)
+        assertEquals(LessonSplitRatio.RATIO_50_50, vm.uiState.value.lessonSplitRatio)
+    }
+
+    @Test
+    fun debuggerStageOpensUnlocksPerLessonAndClosesCleanly() {
+        val vm = KovaViewModel()
+        vm.openChapterFocus("ch_1")
+        vm.openLesson("l_1_1")
+        vm.openIdePaneAtHalf()
+
+        assertFalse(vm.uiState.value.isDebuggerStageOpen)
+        assertFalse(vm.uiState.value.isDebuggerUnlockedFor("l_1_1"))
+
+        // Opening the 70:30 Debugger Stage unlocks the lesson debugger and displays the overlay
+        vm.openDebuggerStage("l_1_1")
+        assertTrue(vm.uiState.value.isDebuggerStageOpen)
+        assertTrue(vm.uiState.value.isDebuggerUnlockedFor("l_1_1"))
+
+        // Closing the 70:30 Debugger Stage keeps the lesson & IDE split intact
+        vm.closeDebuggerStage()
+        assertFalse(vm.uiState.value.isDebuggerStageOpen)
+        assertTrue(vm.uiState.value.isIdePaneOpen)
+        assertEquals(LessonSplitRatio.RATIO_50_50, vm.uiState.value.lessonSplitRatio)
+
+        // Detouring to AI and returning preserves IDE open state and split ratio
+        vm.openAiFromLesson("l_1_1")
+        assertEquals(KovaTab.AI, vm.uiState.value.selectedTab)
+        assertTrue(vm.returnFromAiToLesson())
+        assertEquals(DetailDestination.LessonDetail("l_1_1"), vm.uiState.value.activeDetail)
+        assertTrue(vm.uiState.value.isIdePaneOpen)
+        assertEquals(LessonSplitRatio.RATIO_50_50, vm.uiState.value.lessonSplitRatio)
+    }
+
+    @Test
+    fun aiScopedBannerAppliesOnlyToLessonChatsAndPersistsScopedIds() {
+        val tempFile = File.createTempFile("kova_phase22_scoped_ai_", ".json")
+        try {
+            val fixedDate = "2026-11-22"
+            val vm1 = KovaViewModel(
+                appStateStore = FileKovaAppStateStore(tempFile),
+                dateProvider = { fixedDate },
+            )
+
+            // Fresh general chat is NOT lesson-scoped and starts empty for the centered emblem
+            vm1.selectTab(KovaTab.AI)
+            vm1.createNewGeneralThread()
+            assertFalse(vm1.uiState.value.isActiveAiThreadLessonScoped)
+            assertTrue(vm1.uiState.value.activeThreadMessages.isEmpty())
+            assertEquals("GEN", vm1.uiState.value.activeThread?.lessonCode)
+
+            // Launching AI from Lesson 1.1 marks that thread lesson-scoped
+            vm1.openChapterFocus("ch_1")
+            vm1.openLesson("l_1_1")
+            vm1.openAiFromLesson("l_1_1")
+            val scopedThreadId = vm1.uiState.value.activeThreadId
+            assertTrue(scopedThreadId != null)
+            assertTrue(vm1.uiState.value.isActiveAiThreadLessonScoped)
+            assertTrue(scopedThreadId in vm1.uiState.value.scopedAiThreadIds)
+
+            // Returning to lesson and reopening a fresh general chat hides the scoped banner
+            assertTrue(vm1.returnFromAiToLesson())
+            vm1.closeDetail()
+            vm1.selectTab(KovaTab.AI)
+            vm1.createNewGeneralThread()
+            assertFalse(vm1.uiState.value.isActiveAiThreadLessonScoped)
+
+            // Persisted scopedAiThreadIds survives cold app restart
+            val vm2 = KovaViewModel(
+                appStateStore = FileKovaAppStateStore(tempFile),
+                dateProvider = { fixedDate },
+            )
+            assertTrue(scopedThreadId in vm2.uiState.value.scopedAiThreadIds)
+        } finally {
+            tempFile.delete()
+        }
+    }
 }
